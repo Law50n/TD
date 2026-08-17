@@ -319,6 +319,41 @@
   }
   .howto-card ul { padding-left: 16px; }
 
+  /* ===== SANCTUM (META-PROGRESSION) SCREEN ===== */
+  .sanctum-card {
+    background: rgba(45,27,78,0.3);
+    border: 1px solid rgba(139,92,246,0.2);
+    padding: 14px;
+    border-radius: 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .sanctum-card.owned { border-color: rgba(201,168,76,0.5); background: rgba(201,168,76,0.08); }
+  .sanctum-card.locked { opacity: 0.55; }
+  .sanctum-card-head { display:flex; align-items:center; gap:8px; }
+  .sanctum-card-head .emoji { font-size: 20px; }
+  .sanctum-card-name { font-family:'Cinzel Decorative', serif; font-size: 12px; color: var(--spire-gold-light); }
+  .sanctum-card-desc { font-size: 12px; color: var(--text-dim); line-height: 1.6; flex: 1; }
+  .sanctum-buy-btn {
+    font-family: 'Cinzel Decorative', serif;
+    font-size: 11px;
+    padding: 6px 10px;
+    background: rgba(26,15,46,0.8);
+    border: 1px solid rgba(201,168,76,0.4);
+    color: var(--spire-gold);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .sanctum-buy-btn:hover:not(:disabled) { background: rgba(45,27,78,1); border-color: var(--spire-gold); }
+  .sanctum-buy-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .sanctum-owned-tag { font-size: 10px; letter-spacing:1px; color: var(--spire-gold); text-transform: uppercase; }
+  .achievement-card { background: rgba(45,27,78,0.3); border: 1px solid rgba(139,92,246,0.2); padding: 12px; border-radius: 2px; }
+  .achievement-card.unlocked { border-color: rgba(79,195,247,0.5); background: rgba(79,195,247,0.06); }
+  .achievement-card .ach-name { font-family:'Cinzel Decorative', serif; font-size: 12px; color: var(--rune-cyan); }
+  .achievement-card.unlocked .ach-name { color: var(--spire-gold-light); }
+  .achievement-card .ach-desc { font-size: 11px; color: var(--text-dim); margin-top: 4px; line-height: 1.6; }
+
   /* ===== GAME SCREEN ===== */
   #screen-game {
     flex-direction: row;
@@ -724,9 +759,11 @@
     </p>
     <div class="menu-buttons">
       <button class="btn-primary" onclick="Game.startGame()">⚡ Begin Your Vigil</button>
+      <button class="btn-secondary" onclick="Game.openSanctum()">🏛 The Sanctum</button>
       <button class="btn-secondary" onclick="showScreen('lore')">📜 Lore Codex</button>
       <button class="btn-secondary" onclick="showScreen('howto')">⚔ How to Play</button>
       <div id="best-wave-display" style="font-size:11px; color: var(--text-dim); margin-top:8px; font-style:italic;"></div>
+      <div id="essence-display" style="font-size:11px; color: var(--rune-cyan); margin-top:2px; font-style:italic;"></div>
     </div>
   </div>
 </div>
@@ -854,7 +891,35 @@
         <p>🔰 Hollow Warden — shielded; break the shield before HP drops</p>
         <p>🟣 Void Splitter — divides into two Splitlings on death</p>
       </div>
+      <div class="howto-card">
+        <h4>🏛 The Sanctum</h4>
+        <ul>
+          <li>Earn Warden Essence at the end of every run, win or lose</li>
+          <li>Spend it on permanent upgrades — including unlocking the Frost Warden tower</li>
+          <li>Waves 5, 10, and 15 have named bosses with telegraphed abilities — watch for the warning ring before they stomp or heal</li>
+          <li>Click the 🚧 gate near the first bend to seal it for gold — forces future enemies through a longer route</li>
+        </ul>
+      </div>
     </div>
+    <div style="text-align:center; margin-top:24px;">
+      <button class="btn-secondary" onclick="showScreen('title')">← Return to the Vigil</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SANCTUM SCREEN ==================== -->
+<div class="screen" id="screen-sanctum">
+  <div class="howto-container" style="border-top-color: var(--rune-cyan); max-width: 820px;">
+    <div style="text-align:center; margin-bottom:8px;">
+      <div class="codex-title" style="color:var(--rune-cyan);">🏛 The Sanctum</div>
+      <div style="font-size:12px; color:var(--text-dim); font-style:italic; margin-top:4px;">Between vigils, the Warden studies what was learned.</div>
+      <div id="sanctum-essence" style="font-size:15px; color:var(--spire-gold-light); margin-top:10px; font-family:'Cinzel Decorative',serif;"></div>
+      <div class="title-divider" style="background:linear-gradient(90deg, transparent, var(--rune-cyan), transparent); opacity:1; margin-top:12px;"></div>
+    </div>
+    <div style="font-size:11px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase; margin:16px 0 8px;">Permanent Upgrades</div>
+    <div id="sanctum-upgrades" class="howto-grid"></div>
+    <div style="font-size:11px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase; margin:20px 0 8px;">Achievements</div>
+    <div id="sanctum-achievements" class="howto-grid"></div>
     <div style="text-align:center; margin-top:24px;">
       <button class="btn-secondary" onclick="showScreen('title')">← Return to the Vigil</button>
     </div>
@@ -1059,6 +1124,30 @@ const TOWER_DEFS = [
       { name: 'Siege Core', cost: 130, damageBonus: 60, rangeBonus: 10, fireRateBonus: 0.1, aoeBonus: 10, desc: 'Reinforced with crystallized void-matter.' },
       { name: 'Apocalypse Round', cost: 220, damageBonus: 120, rangeBonus: 15, fireRateBonus: 0.05, aoeBonus: 20, desc: 'Each shot echoes with the last breath of a dead world.' }
     ]
+  },
+  {
+    id: 'frost',
+    name: 'Frost Warden',
+    emoji: '❄️',
+    cost: 140,
+    lore: 'Bound in eternal winter. It does not kill — it merely ensures the enemy arrives too late to matter.',
+    color: '#4fc3f7',
+    glowColor: 'rgba(79,195,247,0.5)',
+    damage: 10,
+    range: 95,
+    fireRate: 1.0,
+    projectileSpeed: 240,
+    projectileColor: '#b3e5fc',
+    projectileSize: 5,
+    aoe: 22,
+    armorPierce: 0,
+    slowPct: 0.4,       // fraction of speed removed
+    slowDuration: 1.6,  // seconds
+    requiresUpgrade: 'unlock_frost',  // Sanctum purchase id that unlocks this tower
+    upgrades: [
+      { name: 'Deep Chill', cost: 90, damageBonus: 8, rangeBonus: 10, fireRateBonus: 0.2, slowPctBonus: 0.15, slowDurationBonus: 0.5, desc: 'The frost bites deeper and holds longer.' },
+      { name: 'Absolute Zero', cost: 150, damageBonus: 15, rangeBonus: 10, fireRateBonus: 0.1, aoeBonus: 8, slowPctBonus: 0.15, slowDurationBonus: 0.5, desc: 'Some enemies simply stop.' }
+    ]
   }
   // SCALABILITY NOTE: Add more tower types here!
   // Example: Lightning Tower, Ice Tower, Chain Tower, etc.
@@ -1127,6 +1216,63 @@ const ENEMY_DEFS = [
     resistance: { archer: 0.3, cannon: 0.2 },
     size: 14,
     bounceAmp: 2,
+  },
+  {
+    id: 'warden_breaker',
+    name: 'The Warden-Breaker',
+    emoji: '🗿',
+    lore: 'A Void Behemoth grown vast enough to shatter stone with a single step. It does not walk so much as arrive.',
+    color: '#4e5b63',
+    glowColor: 'rgba(78,91,99,0.85)',
+    hp: 500,
+    speed: 24,
+    reward: 60,
+    armor: 22,
+    resistance: { archer: 0.45, mage: 0.1 },
+    size: 20,
+    bounceAmp: 1,
+    boss: true,
+    // Periodically stomps, telegraphed, stunning nearby towers
+    bossAbility: [{ type: 'stomp', interval: 6, telegraph: 1.2, radius: 150, stunDuration: 1.6 }],
+  },
+  {
+    id: 'archon_ravager',
+    name: 'The Archon Ravager',
+    emoji: '👺',
+    lore: 'Its wounds seal themselves even as you strike. The Void does not send this one to die.',
+    color: '#2d0044',
+    glowColor: 'rgba(120,0,220,0.85)',
+    hp: 700,
+    speed: 38,
+    reward: 90,
+    armor: 32,
+    resistance: { archer: 0.35, cannon: 0.2 },
+    size: 18,
+    bounceAmp: 2,
+    boss: true,
+    // Periodically heals a chunk of its own HP — burst it or lose the race
+    bossAbility: [{ type: 'heal', interval: 8, telegraph: 1.2, healPct: 0.12 }],
+  },
+  {
+    id: 'sovereign_void',
+    name: 'The Sovereign of the Void',
+    emoji: '💀',
+    lore: 'The first of the Legion, and the Warden suspects, the last thing many worlds ever saw.',
+    color: '#12001f',
+    glowColor: 'rgba(160,20,255,0.9)',
+    hp: 900,
+    speed: 30,
+    reward: 150,
+    armor: 35,
+    resistance: { archer: 0.4, mage: 0.15, cannon: 0.15 },
+    size: 24,
+    bounceAmp: 1,
+    boss: true,
+    // Alternates between abilities — the full weight of the Void Legion in one body
+    bossAbility: [
+      { type: 'stomp', interval: 7, telegraph: 1.3, radius: 160, stunDuration: 1.8 },
+      { type: 'heal', interval: 7, telegraph: 1.3, healPct: 0.1 },
+    ],
   },
   {
     id: 'wisp',
@@ -1208,8 +1354,8 @@ const WAVE_DEFS = [
     enemies: [{type:'crawler', count:6, interval:1000, delay:0}, {type:'stalker', count:4, interval:1500, delay:3000}, {type:'wisp', count:3, interval:1800, delay:6000}] },
   { wave: 4,  lore: "The Legion shifts strategy. Crawlers screen while Stalkers strike.",
     enemies: [{type:'crawler', count:10, interval:800, delay:0}, {type:'stalker', count:6, interval:1200, delay:5000}] },
-  { wave: 5,  lore: "A Void Behemoth lumbers from the Shattered Gate, and a shell-bound Warden lurches beside it. The earth itself recoils.",
-    enemies: [{type:'crawler', count:12, interval:700, delay:0}, {type:'warden', count:3, interval:2500, delay:4000}, {type:'behemoth', count:1, interval:5000, delay:9000}] },
+  { wave: 5,  lore: "The Warden-Breaker lumbers from the Shattered Gate — a Void Behemoth grown vast enough to shatter stone with a step. A shell-bound Warden lurches beside it.",
+    enemies: [{type:'crawler', count:12, interval:700, delay:0}, {type:'warden', count:3, interval:2500, delay:4000}, {type:'warden_breaker', count:1, interval:5000, delay:9000}] },
   { wave: 6,  lore: "The Behemoths bring friends. And the Stalkers have grown bolder.",
     enemies: [{type:'stalker', count:8, interval:900, delay:0}, {type:'behemoth', count:2, interval:4000, delay:6000}] },
   { wave: 7,  lore: "Seven waves. Seven seals broken. Void Splitters seed the field — cut one down and two more rise in its place.",
@@ -1218,8 +1364,8 @@ const WAVE_DEFS = [
     enemies: [{type:'crawler', count:10, interval:700, delay:0}, {type:'stalker', count:5, interval:1000, delay:3000}, {type:'archon', count:1, interval:6000, delay:8000}] },
   { wave: 9,  lore: "The Archon calls reinforcements. Void-spawn pour from every crack in the veil.",
     enemies: [{type:'crawler', count:20, interval:500, delay:0}, {type:'behemoth', count:2, interval:3500, delay:5000}, {type:'archon', count:1, interval:6000, delay:12000}] },
-  { wave: 10, lore: "Half the vigil complete. The Void grows desperate — and desperation breeds ferocity.",
-    enemies: [{type:'stalker', count:12, interval:700, delay:0}, {type:'behemoth', count:3, interval:3000, delay:5000}, {type:'archon', count:1, interval:6000, delay:14000}] },
+  { wave: 10, lore: "Half the vigil complete. An Archon Ravager rises from the deepest rift — its wounds seal themselves even as you strike.",
+    enemies: [{type:'stalker', count:12, interval:700, delay:0}, {type:'behemoth', count:3, interval:3000, delay:5000}, {type:'archon_ravager', count:1, interval:6000, delay:14000}] },
   { wave: 11, lore: "The Shadow Beasts of the Broken Moon descend in full force. Hold. Just hold.",
     enemies: [{type:'crawler', count:25, interval:400, delay:0}, {type:'stalker', count:10, interval:800, delay:6000}, {type:'archon', count:2, interval:5000, delay:16000}] },
   { wave: 12, lore: "Every Behemoth bearing the Void-Mark advances. The path groans beneath them.",
@@ -1228,8 +1374,8 @@ const WAVE_DEFS = [
     enemies: [{type:'crawler', count:30, interval:350, delay:0}, {type:'stalker', count:15, interval:600, delay:7000}, {type:'behemoth', count:4, interval:2500, delay:14000}] },
   { wave: 14, lore: "Three Rift Archons lead the penultimate assault. Creatures of ancient, terrible purpose.",
     enemies: [{type:'crawler', count:20, interval:400, delay:0}, {type:'stalker', count:12, interval:700, delay:5000}, {type:'behemoth', count:4, interval:2500, delay:10000}, {type:'archon', count:3, interval:4500, delay:16000}] },
-  { wave: 15, lore: "The Void Legion throws everything into this final surge. This is the Shattering. Hold eternity.",
-    enemies: [{type:'crawler', count:35, interval:300, delay:0}, {type:'stalker', count:20, interval:550, delay:5000}, {type:'behemoth', count:6, interval:2200, delay:12000}, {type:'archon', count:4, interval:4000, delay:20000}] }
+  { wave: 15, lore: "The Void Legion throws everything into this final surge. At its heart walks the Sovereign of the Void itself. This is the Shattering. Hold eternity.",
+    enemies: [{type:'crawler', count:35, interval:300, delay:0}, {type:'stalker', count:20, interval:550, delay:5000}, {type:'behemoth', count:6, interval:2200, delay:12000}, {type:'archon', count:4, interval:4000, delay:20000}, {type:'sovereign_void', count:1, interval:1000, delay:32000}] }
   // SCALABILITY NOTE: Add wave 16+ here easily!
 ];
 
@@ -1249,6 +1395,58 @@ const MAP1_PATH = [
   [11,11],[12,11],[13,11],[14,11],[15,11],[16,11],[17,11],[18,11],
   [18,10],[18,9],[18,8],[18,7],[18,6],[18,5],[18,4],[18,3],[18,2],
   [19,2],[20,2],[21,2],[22,2],[23,2]
+];
+
+// --- LIGHT MAZING: "The Breach" gate ---
+// SCALABILITY NOTE: A second, longer route for the same map. Sealing the
+// gate (GameMap.sealGate) swaps the active path from MAP1_PATH to this one,
+// forcing every enemy SPAWNED AFTER that moment through the longer detour
+// (already-spawned enemies keep the shorter route they were given, since
+// each Enemy holds its own reference to the worldPath array it spawned with).
+// GATE_TILE marks a special, non-buildable tile the player clicks to seal it.
+const GATE_TILE = { c: 7, r: 3 };
+const MAP1_PATH_LONG_DETOUR_TILES = [[5,3],[4,3],[3,3],[3,4],[3,5],[3,6],[4,6],[5,6]];
+const MAP1_PATH_LONG = [
+  [0,2],[1,2],[2,2],[3,2],[4,2],[5,2],[6,2],
+  [6,3],[5,3],[4,3],[3,3],[3,4],[3,5],[3,6],[4,6],[5,6],[6,6],
+  [7,6],[8,6],[9,6],[10,6],[11,6],[12,6],[12,5],[12,4],[12,3],[12,2],
+  [13,2],[14,2],[15,2],[16,2],[16,3],[16,4],[16,5],[16,6],[16,7],[16,8],
+  [15,8],[14,8],[13,8],[12,8],[11,8],[10,8],[10,9],[10,10],[10,11],
+  [11,11],[12,11],[13,11],[14,11],[15,11],[16,11],[17,11],[18,11],
+  [18,10],[18,9],[18,8],[18,7],[18,6],[18,5],[18,4],[18,3],[18,2],
+  [19,2],[20,2],[21,2],[22,2],[23,2]
+];
+
+// --- META-PROGRESSION: Sanctum upgrades ---
+// SCALABILITY NOTE: One-time purchases, paid for with Warden Essence
+// (earned at the end of every run, win or lose). 'effect' keys are read by
+// Game.getMetaEffects() and applied in newGame(). Add more by adding
+// entries here — no other code changes needed.
+const META_UPGRADES = [
+  { id: 'gold_start_1', name: "Warden's Reserve", emoji: '🪙', cost: 40,
+    desc: '+25 starting Gold every run.', effect: { startGold: 25 } },
+  { id: 'gold_start_2', name: "Warden's Hoard", emoji: '💰', cost: 90,
+    desc: '+50 more starting Gold (stacks with Reserve).', effect: { startGold: 50 }, requires: 'gold_start_1' },
+  { id: 'extra_life', name: 'Bastion Ward', emoji: '❤️', cost: 60,
+    desc: '+3 starting Lives every run.', effect: { startLives: 3 } },
+  { id: 'sell_rate', name: 'Efficient Teardown', emoji: '🔧', cost: 70,
+    desc: 'Sell towers for 75% of cost instead of 60%.', effect: { sellRate: 0.75 } },
+  { id: 'unlock_frost', name: 'Unlock: Frost Warden', emoji: '❄️', cost: 120,
+    desc: 'A new tower that slows enemies in an icy field.', effect: { unlockTower: 'frost' } },
+];
+
+// --- ACHIEVEMENTS ---
+// SCALABILITY NOTE: 'check(runStats)' returns true once earned; runStats is
+// built in Game.triggerVictory/triggerDefeat. Persisted by id in localStorage.
+const ACHIEVEMENT_DEFS = [
+  { id: 'flawless', name: 'Flawless Vigil', emoji: '✨', desc: 'Win a run without losing a single Life.',
+    check: (s) => s.won && s.livesLost === 0 },
+  { id: 'iron_warden', name: 'Iron Warden', emoji: '🛡', desc: 'Win a run using only one type of tower.',
+    check: (s) => s.won && s.towerTypesUsed <= 1 },
+  { id: 'archon_slayer', name: 'Archon Slayer', emoji: '👑', desc: 'Kill 10 Rift Archons across all runs.',
+    check: (s, totals) => totals.archonKills >= 10 },
+  { id: 'the_shattering', name: 'The Shattering', emoji: '💀', desc: 'Defeat the Sovereign of the Void.',
+    check: (s) => s.won && s.sovereignSlain },
 ];
 
 // ============================================================
@@ -1384,19 +1582,23 @@ class ParticleSystem {
     this.shakeDur = 0;
     this.shakeMag = 0;
   }
-  // Floating damage number
-  damageText(x, y, amount, color = '#fff') {
-    if (amount < 1) return;
+  // Generic floating text (used for damage numbers and boss ability call-outs)
+  floatText(x, y, text, color = '#fff', life = 0.7) {
     this.particles.push({
       x: x + (Math.random() * 10 - 5), y,
       vy: -34,
-      text: Math.round(amount),
+      text,
       color,
       alpha: 1,
-      life: 0.7,
-      maxLife: 0.7,
+      life,
+      maxLife: life,
       type: 'text'
     });
+  }
+  // Floating damage number
+  damageText(x, y, amount, color = '#fff') {
+    if (amount < 1) return;
+    this.floatText(x, y, Math.round(amount), color);
   }
   // Camera shake — call each time an impactful event happens;
   // a stronger/longer shake in progress is never weakened by a smaller one.
@@ -1545,27 +1747,38 @@ class GameMap {
     this.buildable = new Set(); // set of "col,row" that can be built on
     this.towers = new Map(); // "col,row" -> Tower instance
     this.animTime = 0;
+    this.gateSealed = false; // light mazing: has "The Breach" gate been sealed this run?
     this._init();
   }
+  // Rebuilds tiles/pathSet/buildable from the current pathCoords. Safe to
+  // call again mid-run (sealGate does): any tiles already holding a tower
+  // are re-marked 'tower' afterward so existing placements survive a reroute.
   _init() {
     this.tiles = Array.from({length: this.rows}, () => Array(this.cols).fill('build'));
+    this.pathSet = new Set();
     this.pathCoords.forEach(([c,r]) => {
       if (r >= 0 && r < this.rows && c >= 0 && c < this.cols) {
         this.tiles[r][c] = 'path';
         this.pathSet.add(`${c},${r}`);
       }
     });
-    // Mark tiles adjacent to path as buildable (already 'build' by default unless on path)
-    // All non-path tiles are buildable
+    // All non-path tiles are buildable, except tiles already holding a tower
+    this.buildable = new Set();
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
-        if (this.tiles[r][c] === 'build') {
+        if (this.tiles[r][c] === 'build' && !this.towers.has(`${c},${r}`)) {
           this.buildable.add(`${c},${r}`);
         }
       }
     }
+    this.towers.forEach((tower, key) => {
+      const [c, r] = key.split(',').map(Number);
+      this.tiles[r][c] = 'tower';
+    });
   }
   resize(w, h) {
+    this._lastW = w;
+    this._lastH = h;
     this.tileW = Math.floor(w / this.cols);
     this.tileH = Math.floor(h / this.rows);
     this.offsetX = Math.floor((w - this.tileW * this.cols) / 2);
@@ -1575,6 +1788,19 @@ class GameMap {
       x: this.offsetX + c * this.tileW + this.tileW / 2,
       y: this.offsetY + r * this.tileH + this.tileH / 2
     }));
+  }
+  // Swaps to the longer route (MAP1_PATH_LONG) for all enemies spawned from
+  // this point on; enemies already on the path keep the shorter route they
+  // spawned with, since each Enemy captured its own worldPath reference.
+  sealGate() {
+    if (this.gateSealed) return { ok: false, reason: 'already' };
+    const blocked = MAP1_PATH_LONG_DETOUR_TILES.some(([c, r]) => this.towers.has(`${c},${r}`));
+    if (blocked) return { ok: false, reason: 'blocked' };
+    this.gateSealed = true;
+    this.pathCoords = MAP1_PATH_LONG;
+    this._init();
+    this.resize(this._lastW, this._lastH);
+    return { ok: true };
   }
   tileToWorld(c, r) {
     return {
@@ -1588,6 +1814,7 @@ class GameMap {
     return { c, r };
   }
   isBuildable(c, r) {
+    if (c === GATE_TILE.c && r === GATE_TILE.r) return false;
     return c >= 0 && c < this.cols && r >= 0 && r < this.rows
       && this.tiles[r][c] === 'build'
       && !this.towers.has(`${c},${r}`);
@@ -1685,6 +1912,21 @@ class GameMap {
       ctx.restore();
     }
 
+    // "The Breach" gate marker — light mazing. Only shown while unsealed.
+    if (!this.gateSealed) {
+      const g = this.tileToWorld(GATE_TILE.c, GATE_TILE.r);
+      const gp = 0.5 + 0.5 * Math.sin(this.animTime * 2.2);
+      ctx.save();
+      ctx.shadowColor = '#4fc3f7';
+      ctx.shadowBlur = 10 + 6 * gp;
+      ctx.font = `${Math.max(tw * 0.8, 16)}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.globalAlpha = 0.85;
+      ctx.fillText('🚧', g.x, g.y);
+      ctx.restore();
+    }
+
     // Grid overlay (faint)
     ctx.strokeStyle = 'rgba(100,80,150,0.06)';
     ctx.lineWidth = 0.5;
@@ -1777,6 +2019,8 @@ class Tower {
     this.aimAngle = 0;
     this.recoilOffset = 0;
     this.recoilVel = 0;
+    this.stunTimer = 0;   // set by boss stomp abilities; can't acquire/fire while > 0
+    this.sellRate = 0.6;  // overridden at placement time by Sanctum's Efficient Teardown talent
     // Targeting: 'first' (furthest along path), 'last' (least progress),
     // 'strongest' (highest current HP), 'closest' (nearest to this tower)
     this.targetMode = 'first';
@@ -1792,7 +2036,7 @@ class Tower {
     this.totalCost += upgDef.cost;
     return true;
   }
-  getSellValue() { return Math.floor(this.totalCost * 0.6); }
+  getSellValue() { return Math.floor(this.totalCost * this.sellRate); }
   cycleTargetMode() {
     const modes = ['first', 'last', 'strongest', 'closest'];
     this.targetMode = modes[(modes.indexOf(this.targetMode) + 1) % modes.length];
@@ -1822,6 +2066,11 @@ class Tower {
     this.cooldown -= dt;
     this.recoilOffset = Math.max(0, this.recoilOffset + this.recoilVel * dt);
     this.recoilVel -= this.recoilOffset * 40;
+    if (this.stunTimer > 0) {
+      this.stunTimer -= dt;
+      this.target = null;
+      return; // stunned by a boss stomp — can't acquire or fire
+    }
     this.target = this.findTarget(enemies);
     if (this.target) {
       const dx = this.target.x - this.x;
@@ -1850,6 +2099,7 @@ class Tower {
     const baseSize = Math.max(tw * 0.38, 8);
 
     ctx.save();
+    if (this.stunTimer > 0) ctx.globalAlpha = 0.4;
     // Tower base glow
     ctx.shadowColor = this.def.glowColor;
     ctx.shadowBlur = 10 + 4 * Math.sin(gameTime * 1.8);
@@ -1927,6 +2177,8 @@ class Projectile {
     this.color = tower.def.projectileColor;
     this.size = tower.def.projectileSize;
     this.towerType = tower.id;
+    this.slowPct = tower.def.slowPct || 0;
+    this.slowDuration = tower.def.slowDuration || 0;
     this.done = false;
     this.trailTimer = 0;
     // Calculate initial direction
@@ -1978,6 +2230,7 @@ class Projectile {
           const falloff = 1 - dist / this.aoe * 0.5;
           const dealt = e.takeDamage(this.damage * falloff, this.armorPierce, this.towerType);
           particles.damageText(e.x, e.y - e.def.size - 4, dealt, this.color);
+          if (this.slowPct > 0) e.applySlow(this.slowPct, this.slowDuration);
         }
       });
       particles.ring(this.x, this.y, this.aoe, this.color);
@@ -1985,6 +2238,7 @@ class Projectile {
     } else {
       const dealt = enemy.takeDamage(this.damage, this.armorPierce, this.towerType);
       particles.damageText(enemy.x, enemy.y - enemy.def.size - 4, dealt, '#fff');
+      if (this.slowPct > 0) enemy.applySlow(this.slowPct, this.slowDuration);
       if (this.damage >= 50) particles.triggerShake(3, 0.12);
     }
     particles.explode(this.x, this.y, this.color, 8);
@@ -2036,6 +2290,23 @@ class Enemy {
     this.escaped = false;
     this.distanceTraveled = 0;
     this.animTime = Math.random() * Math.PI * 2; // random anim phase
+    this.slowTimer = 0;
+    this.slowFactor = 0;
+    // Boss state: bossAbility is an array of ability configs the boss
+    // cycles through (telegraphed, then executed) on its own timer.
+    this.isBoss = !!def.boss;
+    if (this.isBoss) {
+      this.bossAbilities = def.bossAbility;
+      this.abilityIndex = 0;
+      this.abilityTimer = this.bossAbilities[0].interval;
+      this.telegraphActive = false;
+    }
+  }
+  // Applies a movement slow; a stronger/longer slow already in effect is
+  // never weakened by a smaller one landing on top of it.
+  applySlow(pct, duration) {
+    if (pct >= this.slowFactor || this.slowTimer <= 0) this.slowFactor = pct;
+    this.slowTimer = Math.max(this.slowTimer, duration);
   }
   // Returns the effective damage actually applied (post armor/resistance),
   // used to drive the floating damage-number display.
@@ -2059,10 +2330,13 @@ class Enemy {
     if (this.hp <= 0) this.isDead = true;
     return dealt;
   }
-  update(dt) {
+  update(dt, ctx) {
     if (this.isDead || this.escaped) return;
     this.animTime += dt * 3;
-    let remaining = this.speed * dt;
+    if (this.slowTimer > 0) this.slowTimer -= dt;
+    if (this.isBoss) this._updateBossAbility(dt, ctx);
+    const effectiveSpeed = this.slowTimer > 0 ? this.speed * (1 - this.slowFactor) : this.speed;
+    let remaining = effectiveSpeed * dt;
     while (remaining > 0 && this.pathProgress < this.worldPath.length - 1) {
       const curr = this.worldPath[this.pathProgress];
       const next = this.worldPath[this.pathProgress + 1];
@@ -2093,11 +2367,70 @@ class Enemy {
       this.escaped = true;
     }
   }
+  // Ticks the boss's ability timer: telegraphs shortly before firing, then
+  // executes and moves on to the next ability in its rotation (bosses with
+  // one ability just repeat it). ctx carries {towers, particles, audio}.
+  _updateBossAbility(dt, ctx) {
+    const ability = this.bossAbilities[this.abilityIndex];
+    this.abilityTimer -= dt;
+    if (!this.telegraphActive && this.abilityTimer <= ability.telegraph) this.telegraphActive = true;
+    if (this.abilityTimer <= 0) {
+      this._triggerBossAbility(ability, ctx);
+      this.abilityIndex = (this.abilityIndex + 1) % this.bossAbilities.length;
+      this.abilityTimer = this.bossAbilities[this.abilityIndex].interval;
+      this.telegraphActive = false;
+    }
+  }
+  _triggerBossAbility(ability, ctx) {
+    if (!ctx) return;
+    if (ability.type === 'stomp') {
+      if (ctx.towers) {
+        ctx.towers.forEach(t => {
+          const dx = t.x - this.x, dy = t.y - this.y;
+          if (Math.sqrt(dx * dx + dy * dy) <= ability.radius) {
+            t.stunTimer = Math.max(t.stunTimer, ability.stunDuration);
+          }
+        });
+      }
+      if (ctx.particles) {
+        ctx.particles.ring(this.x, this.y, ability.radius, '#ff6b3d');
+        ctx.particles.triggerShake(8, 0.3);
+        ctx.particles.floatText(this.x, this.y - this.def.size - 10, 'STOMP', '#ff6b3d', 0.9);
+      }
+    } else if (ability.type === 'heal') {
+      const healAmt = Math.floor(this.maxHp * ability.healPct);
+      this.hp = Math.min(this.maxHp, this.hp + healAmt);
+      if (ctx.particles) {
+        ctx.particles.ring(this.x, this.y, 40, '#66ff99');
+        ctx.particles.floatText(this.x, this.y - this.def.size - 10, `+${healAmt}`, '#66ff99', 0.9);
+      }
+    }
+  }
   draw(ctx, gameTime) {
     if (this.isDead) return;
     const bounce = Math.sin(this.animTime) * this.def.bounceAmp;
     const size = this.def.size;
     const x = this.x, y = this.y + bounce;
+
+    // Boss aura + ability telegraph, drawn behind the body
+    if (this.isBoss) {
+      ctx.save();
+      const pulse = 0.5 + 0.5 * Math.sin(gameTime * 4);
+      ctx.strokeStyle = `rgba(255,215,0,${0.4 + 0.3 * pulse})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, size + 8, 0, Math.PI * 2);
+      ctx.stroke();
+      if (this.telegraphActive) {
+        const tPulse = 0.5 + 0.5 * Math.sin(gameTime * 10);
+        ctx.strokeStyle = `rgba(255,80,40,${0.5 + 0.4 * tPulse})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(x, y, size + 16 + tPulse * 6, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
 
     ctx.save();
     ctx.shadowColor = this.def.glowColor;
@@ -2108,6 +2441,14 @@ class Enemy {
     ctx.beginPath();
     ctx.arc(x, y, size, 0, Math.PI * 2);
     ctx.fill();
+
+    // Slowed tint (Frost Warden effect)
+    if (this.slowTimer > 0) {
+      ctx.fillStyle = 'rgba(120,220,255,0.35)';
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     // Inner glow
     ctx.fillStyle = this.def.glowColor;
@@ -2134,8 +2475,8 @@ class Enemy {
       ctx.fillRect(bx, by, bw * (this.shield / this.maxShield), bh);
     }
 
-    // Health bar
-    if (this.hp < this.maxHp) {
+    // Health bar (bosses always show theirs; regular enemies only when hurt)
+    if (this.hp < this.maxHp || this.isBoss) {
       const bw = size * 2.4, bh = 3;
       const bx = x - bw / 2, by = y - size - 7;
       ctx.fillStyle = 'rgba(0,0,0,0.6)';
@@ -2145,6 +2486,18 @@ class Enemy {
       const pct = this.hp / this.maxHp;
       ctx.fillStyle = pct > 0.5 ? '#4caf50' : pct > 0.25 ? '#ff9800' : '#f44336';
       ctx.fillRect(bx, by, bw * pct, bh);
+    }
+
+    // Boss name label
+    if (this.isBoss) {
+      ctx.save();
+      ctx.font = "bold 11px Georgia, serif";
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffd700';
+      ctx.shadowColor = '#000';
+      ctx.shadowBlur = 3;
+      ctx.fillText(this.def.name, x, y - size - 16);
+      ctx.restore();
     }
   }
 }
@@ -2232,6 +2585,42 @@ const Game = (function() {
   let totalKills = 0;
   let newGamePlus = false;
   let animFrameId = null;
+  // Per-run tracking for achievements (reset each newGame())
+  let runStartLives = 20;
+  let runTowerTypesUsed = new Set();
+  let runArchonKills = 0;
+  let runSovereignSlain = false;
+  let runEssenceAwarded = 0;
+
+  // ---- META-PROGRESSION (persisted across runs) ----
+  const META_KEYS = { essence: 'eternalspire_essence', purchases: 'eternalspire_purchases', achievements: 'eternalspire_achievements', totals: 'eternalspire_totals' };
+  function getEssence() { return parseInt(localStorage.getItem(META_KEYS.essence) || '0'); }
+  function addEssence(n) { localStorage.setItem(META_KEYS.essence, String(getEssence() + n)); }
+  function spendEssence(n) { localStorage.setItem(META_KEYS.essence, String(Math.max(0, getEssence() - n))); }
+  function getPurchases() { try { return new Set(JSON.parse(localStorage.getItem(META_KEYS.purchases) || '[]')); } catch (e) { return new Set(); } }
+  function savePurchases(set) { localStorage.setItem(META_KEYS.purchases, JSON.stringify([...set])); }
+  function getUnlockedAchievements() { try { return new Set(JSON.parse(localStorage.getItem(META_KEYS.achievements) || '[]')); } catch (e) { return new Set(); } }
+  function saveAchievements(set) { localStorage.setItem(META_KEYS.achievements, JSON.stringify([...set])); }
+  function getTotals() { try { return JSON.parse(localStorage.getItem(META_KEYS.totals) || '{}'); } catch (e) { return {}; } }
+  function saveTotals(t) { localStorage.setItem(META_KEYS.totals, JSON.stringify(t)); }
+
+  // Sums every purchased upgrade's effect into one object newGame() can apply.
+  function getMetaEffects() {
+    const purchases = getPurchases();
+    const effects = { startGold: 0, startLives: 0, sellRate: 0.6, unlockedTowers: new Set() };
+    META_UPGRADES.forEach(u => {
+      if (!purchases.has(u.id)) return;
+      if (u.effect.startGold) effects.startGold += u.effect.startGold;
+      if (u.effect.startLives) effects.startLives += u.effect.startLives;
+      if (u.effect.sellRate) effects.sellRate = Math.max(effects.sellRate, u.effect.sellRate);
+      if (u.effect.unlockTower) effects.unlockedTowers.add(u.effect.unlockTower);
+    });
+    return effects;
+  }
+  function isTowerUnlocked(def) {
+    if (!def.requiresUpgrade) return true;
+    return getPurchases().has(def.requiresUpgrade);
+  }
 
   // ---- INIT ----
   function init() {
@@ -2270,6 +2659,8 @@ const Game = (function() {
     const best = localStorage.getItem('eternalspirebest') || 0;
     const el = document.getElementById('best-wave-display');
     if (el && best > 0) el.textContent = `Best: Wave ${best} reached`;
+    const essEl = document.getElementById('essence-display');
+    if (essEl) essEl.textContent = `✨ ${getEssence()} Warden Essence`;
   }
 
   function resizeHandler() {
@@ -2297,8 +2688,9 @@ const Game = (function() {
     // the init()-time measurement ran while it was still display:none,
     // which left the canvas at a 0x0 draw buffer until a window resize.
     resizeHandler();
-    gold = newGamePlus ? 150 : 200;
-    lives = newGamePlus ? 15 : 20;
+    const meta = getMetaEffects();
+    gold = (newGamePlus ? 150 : 200) + meta.startGold;
+    lives = (newGamePlus ? 15 : 20) + meta.startLives;
     score = 0;
     totalKills = 0;
     currentWave = 0;
@@ -2311,6 +2703,11 @@ const Game = (function() {
     selectedTowerType = null;
     selectedPlacedTower = null;
     gameSpeed = 1;
+    runStartLives = lives;
+    runTowerTypesUsed = new Set();
+    runArchonKills = 0;
+    runSovereignSlain = false;
+    runEssenceAwarded = 0;
 
     gameMap = new GameMap(canvas, MAP1_PATH);
     gameMap.resize(canvas.width, canvas.height);
@@ -2341,6 +2738,58 @@ const Game = (function() {
 
   function hideAllOverlays() {
     document.querySelectorAll('.overlay-screen').forEach(o => o.classList.remove('active'));
+  }
+
+  // ---- SANCTUM (META-PROGRESSION SCREEN) ----
+  function openSanctum() {
+    renderSanctum();
+    showScreen('sanctum');
+  }
+
+  function renderSanctum() {
+    document.getElementById('sanctum-essence').textContent = `✨ ${getEssence()} Warden Essence`;
+    const purchases = getPurchases();
+
+    const upgradesEl = document.getElementById('sanctum-upgrades');
+    upgradesEl.innerHTML = META_UPGRADES.map(u => {
+      const owned = purchases.has(u.id);
+      const locked = u.requires && !purchases.has(u.requires);
+      const affordable = getEssence() >= u.cost;
+      let action;
+      if (owned) action = `<span class="sanctum-owned-tag">✓ Owned</span>`;
+      else if (locked) action = `<span class="sanctum-owned-tag" style="color:var(--text-dim)">Requires ${META_UPGRADES.find(x=>x.id===u.requires)?.name}</span>`;
+      else action = `<button class="sanctum-buy-btn" onclick="Game.buySanctumUpgrade('${u.id}')" ${!affordable ? 'disabled' : ''}>Buy — ✨${u.cost}</button>`;
+      return `
+        <div class="sanctum-card ${owned ? 'owned' : ''} ${locked ? 'locked' : ''}">
+          <div class="sanctum-card-head"><span class="emoji">${u.emoji}</span><span class="sanctum-card-name">${u.name}</span></div>
+          <div class="sanctum-card-desc">${u.desc}</div>
+          ${action}
+        </div>`;
+    }).join('');
+
+    const unlockedAch = getUnlockedAchievements();
+    const achievementsEl = document.getElementById('sanctum-achievements');
+    achievementsEl.innerHTML = ACHIEVEMENT_DEFS.map(a => {
+      const done = unlockedAch.has(a.id);
+      return `
+        <div class="achievement-card ${done ? 'unlocked' : ''}">
+          <div class="ach-name">${done ? a.emoji : '🔒'} ${a.name}</div>
+          <div class="ach-desc">${a.desc}</div>
+        </div>`;
+    }).join('');
+  }
+
+  function buySanctumUpgrade(id) {
+    const upg = META_UPGRADES.find(u => u.id === id);
+    if (!upg) return;
+    const purchases = getPurchases();
+    if (purchases.has(id)) return;
+    if (upg.requires && !purchases.has(upg.requires)) return;
+    if (getEssence() < upg.cost) return;
+    spendEssence(upg.cost);
+    purchases.add(id);
+    savePurchases(purchases);
+    renderSanctum();
   }
 
   // ---- GAME LOOP ----
@@ -2376,8 +2825,9 @@ const Game = (function() {
       }
     }
 
-    // Update enemies
-    enemies.forEach(e => e.update(dt));
+    // Update enemies (bosses receive towers/particles/audio to drive their abilities)
+    const bossCtx = { towers: gameMap.towers, particles, audio };
+    enemies.forEach(e => e.update(dt, bossCtx));
 
     // Handle escaped enemies
     enemies.forEach(e => {
@@ -2401,6 +2851,8 @@ const Game = (function() {
         gold += e.reward;
         score += e.reward * 10;
         totalKills++;
+        if (e.def.id === 'archon' || e.def.id === 'archon_ravager') runArchonKills++;
+        if (e.def.id === 'sovereign_void') runSovereignSlain = true;
         particles.explode(e.x, e.y, e.def.color, 14);
         audio.play('enemy_death');
         updateHUD();
@@ -2563,10 +3015,11 @@ const Game = (function() {
   }
 
   // ---- TOWER PLACEMENT ----
+  const TOWER_HOTKEYS = { archer: '1', mage: '2', cannon: '3', frost: '4' };
   function buildTowerCards() {
     const container = document.getElementById('tower-cards');
     container.innerHTML = '';
-    TOWER_DEFS.forEach((def, idx) => {
+    TOWER_DEFS.filter(isTowerUnlocked).forEach((def) => {
       const card = document.createElement('div');
       card.className = 'tower-card';
       card.dataset.towerId = def.id;
@@ -2575,7 +3028,7 @@ const Game = (function() {
           <span class="tower-emoji">${def.emoji}</span>
           <div>
             <div class="tower-card-name">${def.name}</div>
-            <div style="font-size:9px; color:var(--text-dim); margin-top:2px;">Press ${idx+1}</div>
+            <div style="font-size:9px; color:var(--text-dim); margin-top:2px;">Press ${TOWER_HOTKEYS[def.id] || ''}</div>
           </div>
           <div class="tower-cost">🪙${def.cost}</div>
         </div>
@@ -2594,6 +3047,8 @@ const Game = (function() {
   }
 
   function selectTowerType(towerId) {
+    const def = TOWER_DEFS.find(t => t.id === towerId);
+    if (!def || !isTowerUnlocked(def)) return; // not purchased in the Sanctum yet
     selectedTowerType = selectedTowerType === towerId ? null : towerId;
     selectedPlacedTower = null;
     document.querySelectorAll('.tower-card').forEach(c => {
@@ -2656,6 +3111,14 @@ const Game = (function() {
       return;
     }
 
+    if (c === GATE_TILE.c && r === GATE_TILE.r) {
+      selectedTile = { c, r };
+      selectedPlacedTower = null;
+      document.querySelectorAll('.tower-card').forEach(card => card.classList.remove('selected'));
+      updateSidebarInfo();
+      return;
+    }
+
     const towerKey = `${c},${r}`;
     if (gameMap.towers.has(towerKey)) {
       // Select existing tower
@@ -2677,8 +3140,10 @@ const Game = (function() {
       // Place tower
       const world = gameMap.tileToWorld(c, r);
       const tower = new Tower(def, world.x, world.y, c, r);
+      tower.sellRate = getMetaEffects().sellRate;
       gameMap.placeTower(tower, c, r);
       gold -= def.cost;
+      runTowerTypesUsed.add(def.id);
       audio.play('build_tower');
       updateHUD();
       updateAffordability();
@@ -2720,6 +3185,26 @@ const Game = (function() {
     updateSidebarInfo();
   }
 
+  const GATE_COST = 100;
+  function sealTheGate() {
+    if (!gameMap || gameMap.gateSealed) return;
+    if (gold < GATE_COST) {
+      showWaveAnnouncement('Not enough Gold!', '#f44336');
+      return;
+    }
+    const result = gameMap.sealGate();
+    if (!result.ok) {
+      showWaveAnnouncement(result.reason === 'blocked' ? 'Clear towers from the detour first!' : 'Cannot seal.', '#f44336');
+      return;
+    }
+    gold -= GATE_COST;
+    updateHUD();
+    updateAffordability();
+    audio.play('build_tower');
+    showWaveAnnouncement('The Breach is Sealed!', '#4fc3f7');
+    updateSidebarInfo();
+  }
+
   // ---- UI UPDATES ----
   function updateHUD() {
     document.getElementById('hud-gold').textContent = gold;
@@ -2755,6 +3240,15 @@ const Game = (function() {
         ${canUpgradeAtAll && nextUpg ? `<button class="btn-action" onclick="Game.upgradeSelected()" ${!canUpgrade ? 'disabled' : ''}>⬆ Upg<br>🪙${nextUpg.cost}</button>` : `<button class="btn-action" disabled>Max Lvl</button>`}
         <button class="btn-action sell" onclick="Game.sellSelected()">💰 Sell<br>🪙${t.getSellValue()}</button>
       `;
+    } else if (selectedTile && selectedTile.c === GATE_TILE.c && selectedTile.r === GATE_TILE.r) {
+      if (gameMap && gameMap.gateSealed) {
+        infoDiv.innerHTML = `<strong style="color:var(--rune-cyan)">🚧 The Breach</strong><br><span style="color:var(--text-dim)">Sealed. New enemies now take the long way around.</span>`;
+        actionsDiv.style.display = 'none';
+      } else {
+        infoDiv.innerHTML = `<strong style="color:var(--rune-cyan)">🚧 The Breach</strong><br><span style="color:var(--text-dim)">Seal it to force enemies spawned afterward through a longer, more exposed route.</span>`;
+        actionsDiv.style.display = 'flex';
+        actionsDiv.innerHTML = `<button class="btn-action" onclick="Game.sealTheGate()" ${gold < GATE_COST ? 'disabled' : ''} style="flex:1;">🚧 Seal Breach<br>🪙${GATE_COST}</button>`;
+      }
     } else if (selectedTile) {
       const { c, r } = selectedTile;
       if (gameMap && gameMap.tiles[r] && gameMap.tiles[r][c] === 'path') {
@@ -2825,10 +3319,40 @@ const Game = (function() {
     }
   }
 
+  // Awards Warden Essence, updates cumulative totals, and checks
+  // achievements. Called once from both the win and lose paths.
+  function endRun(won) {
+    const livesLost = Math.max(0, runStartLives - lives);
+    const runStats = { won, wave: currentWave, kills: totalKills, livesLost, towerTypesUsed: runTowerTypesUsed.size, sovereignSlain: runSovereignSlain };
+    const essence = Math.floor(currentWave * 4 + totalKills * 0.5 + gold * 0.1);
+    addEssence(essence);
+
+    const totals = getTotals();
+    totals.archonKills = (totals.archonKills || 0) + runArchonKills;
+    saveTotals(totals);
+
+    const unlocked = getUnlockedAchievements();
+    const newlyUnlocked = [];
+    ACHIEVEMENT_DEFS.forEach(a => {
+      if (unlocked.has(a.id)) return;
+      if (a.check(runStats, totals)) { unlocked.add(a.id); newlyUnlocked.push(a); }
+    });
+    saveAchievements(unlocked);
+    return { essence, newlyUnlocked };
+  }
+
+  function formatRunReward(essence, newlyUnlocked) {
+    const achText = newlyUnlocked.length
+      ? `<br><span style="color:var(--rune-cyan)">🏆 ${newlyUnlocked.map(a => `${a.emoji} ${a.name}`).join(', ')} unlocked!</span>`
+      : '';
+    return `<br><span style="color:var(--spire-gold-light)">✨ +${essence} Warden Essence</span>${achText}`;
+  }
+
   function triggerVictory() {
     gameState = 'victory';
     audio.play('victory');
-    document.getElementById('win-stats').textContent = `Kills: ${totalKills} | Score: ${score} | Lives Remaining: ${lives}`;
+    const { essence, newlyUnlocked } = endRun(true);
+    document.getElementById('win-stats').innerHTML = `Kills: ${totalKills} | Score: ${score} | Lives Remaining: ${lives}${formatRunReward(essence, newlyUnlocked)}`;
     document.getElementById('overlay-win').classList.add('active');
     const best = parseInt(localStorage.getItem('eternalspirebest') || '0');
     if (currentWave > best) localStorage.setItem('eternalspirebest', currentWave);
@@ -2837,7 +3361,8 @@ const Game = (function() {
   function triggerDefeat() {
     gameState = 'game_over';
     audio.play('defeat');
-    document.getElementById('lose-stats').textContent = `Reached Wave: ${currentWave} | Kills: ${totalKills} | Score: ${score}`;
+    const { essence, newlyUnlocked } = endRun(false);
+    document.getElementById('lose-stats').innerHTML = `Reached Wave: ${currentWave} | Kills: ${totalKills} | Score: ${score}${formatRunReward(essence, newlyUnlocked)}`;
     document.getElementById('overlay-lose').classList.add('active');
   }
 
@@ -2858,6 +3383,7 @@ const Game = (function() {
       case '1': selectTowerType('archer'); break;
       case '2': selectTowerType('mage'); break;
       case '3': selectTowerType('cannon'); break;
+      case '4': selectTowerType('frost'); break;
       case 't': cycleTargetMode(); break;
     }
   }
@@ -2867,7 +3393,8 @@ const Game = (function() {
     init, startGame, newGame: (ngp) => { newGamePlus = !!ngp; newGame(ngp); }, returnToTitle,
     togglePause, setSpeed,
     startNextWave,
-    upgradeSelected, sellSelected, cycleTargetMode,
+    upgradeSelected, sellSelected, cycleTargetMode, sealTheGate,
+    openSanctum, buySanctumUpgrade,
     // Expose for HTML onclick
   };
 })();

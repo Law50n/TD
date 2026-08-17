@@ -137,21 +137,28 @@ This is the thing that turns "I beat it" into "I'm coming back tonight."
 
 ## Prioritized roadmap
 
-**Phase 1 — one weekend, biggest bang for buck**
-Targeting modes · early wave-call bonus · floating damage numbers +
-screenshake · 3 new enemy types (flying, shielded, splitter).
+**Phase 1 — ✅ shipped**
+Targeting modes (Front/Rear/Strongest/Closest) · early wave-call bonus ·
+floating damage numbers + screenshake · 3 new enemy types (Rift Wisp/flying,
+Hollow Warden/shielded, Void Splitter). Also fixed a pre-existing bug where
+the canvas draw buffer stayed 0x0 until the window was manually resized,
+which silently broke tower placement on first load.
 
-**Phase 2 — 1–2 weeks**
-Meta-currency + unlock tree + first achievement set · telegraphed bosses at
-waves 5/10/15 · light mazing on the existing map.
+**Phase 2 — ✅ shipped**
+Meta-currency (Warden Essence, earned every run) + a Sanctum shop with 5
+permanent upgrades including an unlockable 4th tower (Frost Warden, slows
+enemies) · 4 achievements · telegraphed bosses at waves 5/10/15
+(Warden-Breaker stomps and stuns nearby towers, Archon Ravager heals itself,
+the Sovereign of the Void alternates both) · light mazing — "The Breach"
+gate, sealable for gold to reroute future spawns through a longer, more
+exposed detour.
 
-**Phase 3 — ongoing content, this is what makes it "addictive" long-term**
+**Phase 3 — next up, this is what makes it "addictive" long-term**
 Endless mode · 2nd/3rd map · daily challenge + leaderboard.
 
 ---
 
-`index.html` in this repo is the current prototype, committed as-is so
-Phase 1 has a working baseline to branch from. Nothing above requires a
-rewrite — every workstream slots into the existing `TOWER_DEFS` /
+`index.html` in this repo is the current build. Nothing above required a
+rewrite — every workstream slotted into the existing `TOWER_DEFS` /
 `ENEMY_DEFS` / `WAVE_DEFS` / class structure, which is exactly why it was
 worth designing around instead of starting over.

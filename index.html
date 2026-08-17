@@ -402,6 +402,12 @@
   .btn-hud.next-wave { border-color: var(--rune-cyan); color: var(--rune-cyan); }
   .btn-hud.next-wave:hover { background: rgba(30,58,95,0.6); }
   .btn-hud.next-wave:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-hud.next-wave.early-call {
+    border-color: var(--spire-gold);
+    color: var(--spire-gold-light);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  .btn-hud.next-wave.early-call:hover { background: rgba(80,60,10,0.4); }
 
   /* Canvas */
   #gameCanvas {
@@ -795,8 +801,8 @@
         <ul>
           <li>Click any empty tile on the path's edge</li>
           <li>Select a tower type from the sidebar</li>
-          <li>Towers auto-attack nearest enemy in range</li>
-          <li>Click placed tower to upgrade or sell</li>
+          <li>Towers auto-attack by their targeting priority</li>
+          <li>Click a placed tower to retarget, upgrade, or sell</li>
         </ul>
       </div>
       <div class="howto-card">
@@ -824,6 +830,7 @@
           <li><strong style="color:var(--spire-gold)">M</strong> — Mute sounds</li>
           <li><strong style="color:var(--spire-gold)">ESC</strong> — Deselect</li>
           <li><strong style="color:var(--spire-gold)">1/2/3</strong> — Select tower type</li>
+          <li><strong style="color:var(--spire-gold)">T</strong> — Cycle selected tower's target</li>
         </ul>
       </div>
       <div class="howto-card">
@@ -831,15 +838,21 @@
         <ul>
           <li>15 waves of increasing difficulty</li>
           <li>Press "Next Wave" to start when ready</li>
+          <li>Once a wave finishes spawning, call the next one <em>early</em> for bonus gold — with its stragglers still on the path</li>
           <li>Each wave brings new enemy compositions</li>
-          <li>Bonus gold for finishing fast</li>
         </ul>
       </div>
       <div class="howto-card">
         <h4>💎 Tower Types</h4>
         <p>🏹 Archer — Fast, cheap, single target</p>
-        <p>🔮 Mage — Slow, AoE, armor-piercing</p>
+        <p>🔮 Mage — Slow, AoE, armor-piercing, only tower that hits flying enemies</p>
         <p>💣 Cannon — Very slow, massive AoE damage</p>
+      </div>
+      <div class="howto-card">
+        <h4>👁 New Threats</h4>
+        <p>🦋 Rift Wisp — flies; only Mage towers can hit it</p>
+        <p>🔰 Hollow Warden — shielded; break the shield before HP drops</p>
+        <p>🟣 Void Splitter — divides into two Splitlings on death</p>
       </div>
     </div>
     <div style="text-align:center; margin-top:24px;">
@@ -1020,6 +1033,7 @@ const TOWER_DEFS = [
     projectileSize: 7,
     aoe: 28,            // AoE radius
     armorPierce: 15,    // pierces this much armor
+    hitsFlying: true,   // only tower type that can target flying enemies
     upgrades: [
       { name: 'Void Sight', cost: 90, damageBonus: 20, rangeBonus: 15, fireRateBonus: 0.2, desc: 'Sees through Void resistance.' },
       { name: 'Reality Shatter', cost: 150, damageBonus: 45, rangeBonus: 5, fireRateBonus: 0.1, aoeBonus: 15, desc: 'Each bolt tears reality itself.' }
@@ -1113,9 +1127,73 @@ const ENEMY_DEFS = [
     resistance: { archer: 0.3, cannon: 0.2 },
     size: 14,
     bounceAmp: 2,
+  },
+  {
+    id: 'wisp',
+    name: 'Rift Wisp',
+    emoji: '🦋',
+    lore: 'Torn loose from the Rift itself, it drifts above the battle where no arrow or shell can follow.',
+    color: '#7fd9e0',
+    glowColor: 'rgba(127,217,224,0.75)',
+    hp: 70,
+    speed: 65,
+    reward: 12,
+    armor: 0,
+    resistance: {},
+    size: 9,
+    bounceAmp: 5,
+    flying: true,       // only towers with hitsFlying can target this
+  },
+  {
+    id: 'warden',
+    name: 'Hollow Warden',
+    emoji: '🔰',
+    lore: 'Bound in a shell of stolen light. The shell must break before the creature beneath ever feels a blow.',
+    color: '#2e6b8f',
+    glowColor: 'rgba(46,107,143,0.7)',
+    hp: 140,
+    speed: 40,
+    reward: 20,
+    armor: 8,
+    resistance: {},
+    size: 12,
+    bounceAmp: 2,
+    shield: 90,          // flat damage buffer, must be broken before HP drops (reduced by armorPierce like armor)
+  },
+  {
+    id: 'splitter',
+    name: 'Void Splitter',
+    emoji: '🟣',
+    lore: 'A single Void-seed given rough shape. Kill it and you have only multiplied your problem.',
+    color: '#9c27b0',
+    glowColor: 'rgba(156,39,176,0.7)',
+    hp: 100,
+    speed: 50,
+    reward: 10,
+    armor: 0,
+    resistance: {},
+    size: 11,
+    bounceAmp: 3,
+    splitInto: 'splitling',  // enemy id spawned on death
+    splitCount: 2,
+  },
+  {
+    id: 'splitling',
+    name: 'Void Splitling',
+    emoji: '🔹',
+    lore: 'The seed, halved. Still hungry.',
+    color: '#ba68c8',
+    glowColor: 'rgba(186,104,200,0.7)',
+    hp: 35,
+    speed: 65,
+    reward: 5,
+    armor: 0,
+    resistance: {},
+    size: 7,
+    bounceAmp: 4,
   }
   // SCALABILITY NOTE: Add new enemy types here!
-  // Examples: Flying units (skip path?), Invisible (requires special tower?), Splitter (on death spawns smaller?), etc.
+  // Examples: Invisible (requires special tower?), regenerating, etc.
 ];
 
 // --- WAVE DEFINITIONS ---
@@ -1126,16 +1204,16 @@ const WAVE_DEFS = [
     enemies: [{type:'crawler', count:8, interval:1200, delay:0}] },
   { wave: 2,  lore: "More crawlers follow the first blood-scent. They learn from the fallen.",
     enemies: [{type:'crawler', count:14, interval:900, delay:0}] },
-  { wave: 3,  lore: "Shadow Stalkers emerge from the Broken Moon's shadow. Fast. Vicious.",
-    enemies: [{type:'crawler', count:6, interval:1000, delay:0}, {type:'stalker', count:4, interval:1500, delay:3000}] },
+  { wave: 3,  lore: "Shadow Stalkers emerge from the Broken Moon's shadow — and above them, Rift Wisps drift out of arrow-reach.",
+    enemies: [{type:'crawler', count:6, interval:1000, delay:0}, {type:'stalker', count:4, interval:1500, delay:3000}, {type:'wisp', count:3, interval:1800, delay:6000}] },
   { wave: 4,  lore: "The Legion shifts strategy. Crawlers screen while Stalkers strike.",
     enemies: [{type:'crawler', count:10, interval:800, delay:0}, {type:'stalker', count:6, interval:1200, delay:5000}] },
-  { wave: 5,  lore: "A Void Behemoth lumbers from the Shattered Gate. The earth itself recoils.",
-    enemies: [{type:'crawler', count:12, interval:700, delay:0}, {type:'behemoth', count:1, interval:5000, delay:2000}] },
+  { wave: 5,  lore: "A Void Behemoth lumbers from the Shattered Gate, and a shell-bound Warden lurches beside it. The earth itself recoils.",
+    enemies: [{type:'crawler', count:12, interval:700, delay:0}, {type:'warden', count:3, interval:2500, delay:4000}, {type:'behemoth', count:1, interval:5000, delay:9000}] },
   { wave: 6,  lore: "The Behemoths bring friends. And the Stalkers have grown bolder.",
     enemies: [{type:'stalker', count:8, interval:900, delay:0}, {type:'behemoth', count:2, interval:4000, delay:6000}] },
-  { wave: 7,  lore: "Seven waves. Seven seals broken. The Void presses harder with each breath drawn.",
-    enemies: [{type:'crawler', count:15, interval:600, delay:0}, {type:'stalker', count:8, interval:1000, delay:4000}, {type:'behemoth', count:1, interval:5000, delay:10000}] },
+  { wave: 7,  lore: "Seven waves. Seven seals broken. Void Splitters seed the field — cut one down and two more rise in its place.",
+    enemies: [{type:'crawler', count:15, interval:600, delay:0}, {type:'splitter', count:6, interval:1400, delay:4000}, {type:'stalker', count:8, interval:1000, delay:9000}, {type:'behemoth', count:1, interval:5000, delay:15000}] },
   { wave: 8,  lore: "A Rift Archon has been sighted. The Legion's commander enters the fray personally.",
     enemies: [{type:'crawler', count:10, interval:700, delay:0}, {type:'stalker', count:5, interval:1000, delay:3000}, {type:'archon', count:1, interval:6000, delay:8000}] },
   { wave: 9,  lore: "The Archon calls reinforcements. Void-spawn pour from every crack in the veil.",
@@ -1149,7 +1227,7 @@ const WAVE_DEFS = [
   { wave: 13, lore: "The Rift itself tears open above the Spire. Everything pours through at once.",
     enemies: [{type:'crawler', count:30, interval:350, delay:0}, {type:'stalker', count:15, interval:600, delay:7000}, {type:'behemoth', count:4, interval:2500, delay:14000}] },
   { wave: 14, lore: "Three Rift Archons lead the penultimate assault. Creatures of ancient, terrible purpose.",
-    enemies: [{type:'crawl', count:20, interval:400, delay:0}, {type:'stalker', count:12, interval:700, delay:5000}, {type:'behemoth', count:4, interval:2500, delay:10000}, {type:'archon', count:3, interval:4500, delay:16000}] },
+    enemies: [{type:'crawler', count:20, interval:400, delay:0}, {type:'stalker', count:12, interval:700, delay:5000}, {type:'behemoth', count:4, interval:2500, delay:10000}, {type:'archon', count:3, interval:4500, delay:16000}] },
   { wave: 15, lore: "The Void Legion throws everything into this final surge. This is the Shattering. Hold eternity.",
     enemies: [{type:'crawler', count:35, interval:300, delay:0}, {type:'stalker', count:20, interval:550, delay:5000}, {type:'behemoth', count:6, interval:2200, delay:12000}, {type:'archon', count:4, interval:4000, delay:20000}] }
   // SCALABILITY NOTE: Add wave 16+ here easily!
@@ -1302,6 +1380,37 @@ class AudioManager {
 class ParticleSystem {
   constructor() {
     this.particles = [];
+    this.shakeTime = 0;
+    this.shakeDur = 0;
+    this.shakeMag = 0;
+  }
+  // Floating damage number
+  damageText(x, y, amount, color = '#fff') {
+    if (amount < 1) return;
+    this.particles.push({
+      x: x + (Math.random() * 10 - 5), y,
+      vy: -34,
+      text: Math.round(amount),
+      color,
+      alpha: 1,
+      life: 0.7,
+      maxLife: 0.7,
+      type: 'text'
+    });
+  }
+  // Camera shake — call each time an impactful event happens;
+  // a stronger/longer shake in progress is never weakened by a smaller one.
+  triggerShake(mag, dur) {
+    if (mag >= this.shakeMag || this.shakeTime <= 0) {
+      this.shakeMag = mag;
+      this.shakeTime = dur;
+      this.shakeDur = dur;
+    }
+  }
+  getShakeOffset() {
+    if (this.shakeTime <= 0) return { x: 0, y: 0 };
+    const m = this.shakeMag * (this.shakeTime / this.shakeDur);
+    return { x: (Math.random() * 2 - 1) * m, y: (Math.random() * 2 - 1) * m };
   }
   // Explosion on enemy death
   explode(x, y, color, count = 14) {
@@ -1358,6 +1467,7 @@ class ParticleSystem {
     }
   }
   update(dt) {
+    if (this.shakeTime > 0) this.shakeTime = Math.max(0, this.shakeTime - dt);
     this.particles = this.particles.filter(p => {
       p.life -= dt;
       if (p.life <= 0) return false;
@@ -1371,6 +1481,10 @@ class ParticleSystem {
       } else if (p.type === 'ring') {
         p.radius = p.maxRadius * (1 - t);
         p.alpha = t * 0.5;
+      } else if (p.type === 'text') {
+        p.y += p.vy * dt;
+        p.vy *= 0.94; // ease to a drift
+        p.alpha = t;
       }
       return true;
     });
@@ -1394,6 +1508,15 @@ class ParticleSystem {
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
         ctx.stroke();
+      } else if (p.type === 'text') {
+        ctx.font = 'bold 13px Georgia, serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+        ctx.strokeText(p.text, p.x, p.y);
+        ctx.fillStyle = p.color;
+        ctx.fillText(p.text, p.x, p.y);
       }
       ctx.restore();
     });
@@ -1654,6 +1777,9 @@ class Tower {
     this.aimAngle = 0;
     this.recoilOffset = 0;
     this.recoilVel = 0;
+    // Targeting: 'first' (furthest along path), 'last' (least progress),
+    // 'strongest' (highest current HP), 'closest' (nearest to this tower)
+    this.targetMode = 'first';
   }
   upgrade(upgradeIdx) {
     const upgDef = this.def.upgrades[upgradeIdx];
@@ -1667,17 +1793,27 @@ class Tower {
     return true;
   }
   getSellValue() { return Math.floor(this.totalCost * 0.6); }
+  cycleTargetMode() {
+    const modes = ['first', 'last', 'strongest', 'closest'];
+    this.targetMode = modes[(modes.indexOf(this.targetMode) + 1) % modes.length];
+  }
   findTarget(enemies) {
     let best = null, bestDist = Infinity;
     enemies.forEach(e => {
       if (e.isDead || e.escaped) return;
+      if (e.def.flying && !this.def.hitsFlying) return; // can't reach flying enemies
       const dx = e.x - this.x, dy = e.y - this.y;
       const dist = Math.sqrt(dx*dx + dy*dy);
-      if (dist <= this.range) {
-        // Target the one furthest along the path
-        if (!best || e.pathProgress > best.pathProgress) {
-          best = e;
-        }
+      if (dist > this.range) return;
+      if (this.targetMode === 'last') {
+        if (!best || e.distanceTraveled < best.distanceTraveled) best = e;
+      } else if (this.targetMode === 'strongest') {
+        if (!best || e.hp > best.hp) best = e;
+      } else if (this.targetMode === 'closest') {
+        if (dist < bestDist) { best = e; bestDist = dist; }
+      } else {
+        // 'first' — target furthest along the path (default, original behavior)
+        if (!best || e.distanceTraveled > best.distanceTraveled) best = e;
       }
     });
     return best;
@@ -1840,12 +1976,16 @@ class Projectile {
         const dist = Math.sqrt(dx*dx + dy*dy);
         if (dist <= this.aoe) {
           const falloff = 1 - dist / this.aoe * 0.5;
-          e.takeDamage(this.damage * falloff, this.armorPierce, this.towerType);
+          const dealt = e.takeDamage(this.damage * falloff, this.armorPierce, this.towerType);
+          particles.damageText(e.x, e.y - e.def.size - 4, dealt, this.color);
         }
       });
       particles.ring(this.x, this.y, this.aoe, this.color);
+      particles.triggerShake(Math.min(3 + this.damage / 30, 10), 0.18);
     } else {
-      enemy.takeDamage(this.damage, this.armorPierce, this.towerType);
+      const dealt = enemy.takeDamage(this.damage, this.armorPierce, this.towerType);
+      particles.damageText(enemy.x, enemy.y - enemy.def.size - 4, dealt, '#fff');
+      if (this.damage >= 50) particles.triggerShake(3, 0.12);
     }
     particles.explode(this.x, this.y, this.color, 8);
     audio.play('enemy_death'); // use generic hit sound; separate from death
@@ -1889,11 +2029,16 @@ class Enemy {
     this.armor = def.armor;
     this.resistance = def.resistance;
     this.reward = def.reward;
+    this.shield = def.shield || 0;
+    this.maxShield = this.shield;
+    this.waveMultiplier = waveMultiplier;
     this.isDead = false;
     this.escaped = false;
     this.distanceTraveled = 0;
     this.animTime = Math.random() * Math.PI * 2; // random anim phase
   }
+  // Returns the effective damage actually applied (post armor/resistance),
+  // used to drive the floating damage-number display.
   takeDamage(dmg, armorPierce, towerType) {
     // Apply armor
     const effectiveArmor = Math.max(0, this.armor - armorPierce);
@@ -1901,8 +2046,18 @@ class Enemy {
     // Apply resistance
     const res = this.resistance[towerType] || 0;
     reducedDmg *= (1 - res);
+    const dealt = reducedDmg;
+    // Shield absorbs before HP. Armor-pierce weakens how much it blocks per
+    // hit (same idea as armor), so it depletes faster and breaks sooner.
+    if (this.shield > 0) {
+      const effectiveShield = Math.max(0, this.shield - armorPierce);
+      const absorbed = Math.min(effectiveShield, reducedDmg);
+      this.shield -= absorbed;
+      reducedDmg -= absorbed;
+    }
     this.hp = Math.max(0, this.hp - reducedDmg);
     if (this.hp <= 0) this.isDead = true;
+    return dealt;
   }
   update(dt) {
     if (this.isDead || this.escaped) return;
@@ -1968,6 +2123,16 @@ class Enemy {
     ctx.globalAlpha = 0.9;
     ctx.fillText(this.def.emoji, x, y);
     ctx.restore();
+
+    // Shield bar (drawn above the HP bar while it holds)
+    if (this.maxShield > 0 && this.shield > 0) {
+      const bw = size * 2.4, bh = 2.5;
+      const bx = x - bw / 2, by = y - size - 11;
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+      ctx.fillStyle = '#5fc6e8';
+      ctx.fillRect(bx, by, bw * (this.shield / this.maxShield), bh);
+    }
 
     // Health bar
     if (this.hp < this.maxHp) {
@@ -2128,6 +2293,10 @@ const Game = (function() {
 
   function newGame(isNewGamePlus) {
     if (animFrameId) cancelAnimationFrame(animFrameId);
+    // Re-measure the canvas now that the game screen is actually visible —
+    // the init()-time measurement ran while it was still display:none,
+    // which left the canvas at a 0x0 draw buffer until a window resize.
+    resizeHandler();
     gold = newGamePlus ? 150 : 200;
     lives = newGamePlus ? 15 : 20;
     score = 0;
@@ -2154,7 +2323,10 @@ const Game = (function() {
     setSpeedButton(1);
 
     document.getElementById('hud-wave-lore').textContent = 'Awaiting the first assault...';
-    document.getElementById('btn-next-wave').disabled = false;
+    const nextWaveBtn = document.getElementById('btn-next-wave');
+    nextWaveBtn.disabled = false;
+    nextWaveBtn.classList.remove('early-call');
+    nextWaveBtn.textContent = '▶ Next Wave';
 
     lastTime = performance.now();
     animFrameId = requestAnimationFrame(gameLoop);
@@ -2190,6 +2362,20 @@ const Game = (function() {
     // Update wave manager (spawn enemies)
     waveManager.update(dt, enemies, gameMap.worldPath);
 
+    // Once the current wave has finished spawning, allow an early call on
+    // the next one for a risk/reward bonus (stragglers keep fighting while
+    // the new wave starts spawning on top of them).
+    if (waveManager.active && waveManager.allEnemiesSpawned && currentWave < WAVE_DEFS.length) {
+      const btn = document.getElementById('btn-next-wave');
+      if (btn.disabled) {
+        btn.disabled = false;
+        btn.classList.add('early-call');
+        btn.textContent = `⚡ Call Early (+${earlyCallBonus()}g)`;
+      } else if (btn.classList.contains('early-call')) {
+        btn.textContent = `⚡ Call Early (+${earlyCallBonus()}g)`;
+      }
+    }
+
     // Update enemies
     enemies.forEach(e => e.update(dt));
 
@@ -2200,6 +2386,7 @@ const Game = (function() {
         lives--;
         updateHUD();
         particles.flash(gameMap.worldPath[gameMap.worldPath.length-1].x, gameMap.worldPath[gameMap.worldPath.length-1].y);
+        particles.triggerShake(6, 0.3);
         audio.play('enemy_escape');
         if (lives <= 0) {
           triggerDefeat();
@@ -2217,6 +2404,22 @@ const Game = (function() {
         particles.explode(e.x, e.y, e.def.color, 14);
         audio.play('enemy_death');
         updateHUD();
+        // Splitters divide into weaker children on death instead of just dying
+        if (e.def.splitInto) {
+          const childDef = ENEMY_DEFS.find(d => d.id === e.def.splitInto);
+          if (childDef) {
+            const count = e.def.splitCount || 2;
+            for (let i = 0; i < count; i++) {
+              const child = new Enemy(childDef, gameMap.worldPath, e.waveMultiplier);
+              child.pathProgress = e.pathProgress;
+              child.pathFraction = e.pathFraction;
+              child.distanceTraveled = e.distanceTraveled;
+              child.x = e.x + (Math.random() * 14 - 7);
+              child.y = e.y + (Math.random() * 14 - 7);
+              enemies.push(child);
+            }
+          }
+        }
       }
     });
 
@@ -2248,7 +2451,10 @@ const Game = (function() {
         const bonus = 15 + currentWave * 3;
         gold += bonus;
         updateHUD();
-        document.getElementById('btn-next-wave').disabled = false;
+        const btn = document.getElementById('btn-next-wave');
+        btn.disabled = false;
+        btn.classList.remove('early-call');
+        btn.textContent = '▶ Next Wave';
         document.getElementById('hud-wave-lore').textContent = `Wave ${currentWave} cleared! +${bonus}g bonus.`;
         showWaveAnnouncement(`Wave ${currentWave} Cleared! +${bonus}g`, '#4caf50');
       }
@@ -2262,6 +2468,11 @@ const Game = (function() {
     // Background
     ctx.fillStyle = '#0a0812';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Screenshake: offset everything drawn below, restored at the end
+    const shake = particles.getShakeOffset();
+    ctx.save();
+    ctx.translate(shake.x, shake.y);
 
     // Map
     gameMap.draw(ctx, selectedTile, dt);
@@ -2296,19 +2507,41 @@ const Game = (function() {
         ctx.restore();
       }
     }
+
+    ctx.restore(); // matches the shake translate at the top of this function
   }
 
   // ---- WAVE MANAGEMENT ----
+  // Early-call bonus scales with how many enemies are still alive when the
+  // player pulls the trigger — more risk on screen, bigger reward for it.
+  function earlyCallBonus() {
+    return Math.min(70, 10 + enemies.length * 4);
+  }
+
   function startNextWave() {
-    if (gameState !== 'between_waves') return;
+    const isFreshStart = gameState === 'between_waves';
+    const isEarlyCall = gameState === 'playing' && waveManager.active
+      && waveManager.allEnemiesSpawned && currentWave < WAVE_DEFS.length;
+    if (!isFreshStart && !isEarlyCall) return;
     if (currentWave >= WAVE_DEFS.length) return;
+
+    if (isEarlyCall) {
+      const bonus = earlyCallBonus();
+      gold += bonus;
+      updateHUD();
+      showWaveAnnouncement(`Early Call! +${bonus}g`, '#ff9800');
+    }
+
     currentWave++;
     gameState = 'playing';
     waveManager.startWave(currentWave, enemies, gameMap.worldPath);
     const lore = waveManager.getCurrentLore();
     document.getElementById('hud-wave-num').textContent = `WAVE ${currentWave} / ${WAVE_DEFS.length}`;
     document.getElementById('hud-wave-lore').textContent = lore;
-    document.getElementById('btn-next-wave').disabled = true;
+    const btn = document.getElementById('btn-next-wave');
+    btn.disabled = true;
+    btn.classList.remove('early-call');
+    btn.textContent = '▶ Next Wave';
     updateHUD();
     showWaveAnnouncement(`Wave ${currentWave}`, '#c9a84c');
     audio.play('wave_start');
@@ -2509,6 +2742,7 @@ const Game = (function() {
       const nextUpg = t.def.upgrades[t.level];
       const canUpgrade = nextUpg && gold >= nextUpg.cost;
       const canUpgradeAtAll = t.level < t.def.upgrades.length;
+      const modeLabels = { first: 'Front ▸', last: 'Rear ▸', strongest: 'Strongest ▸', closest: 'Closest ▸' };
       infoDiv.innerHTML = `
         <strong style="color:var(--spire-gold-light); font-style:normal;">${t.def.emoji} ${t.def.name}</strong>
         ${t.level > 0 ? `<span style="color:var(--rune-cyan)"> (Lvl ${t.level+1})</span>` : ''}<br>
@@ -2517,6 +2751,7 @@ const Game = (function() {
       `;
       actionsDiv.style.display = 'flex';
       actionsDiv.innerHTML = `
+        <button class="btn-action" onclick="Game.cycleTargetMode()" title="Cycle targeting priority">🎯 ${modeLabels[t.targetMode]}</button>
         ${canUpgradeAtAll && nextUpg ? `<button class="btn-action" onclick="Game.upgradeSelected()" ${!canUpgrade ? 'disabled' : ''}>⬆ Upg<br>🪙${nextUpg.cost}</button>` : `<button class="btn-action" disabled>Max Lvl</button>`}
         <button class="btn-action sell" onclick="Game.sellSelected()">💰 Sell<br>🪙${t.getSellValue()}</button>
       `;
@@ -2543,7 +2778,7 @@ const Game = (function() {
     document.getElementById('tooltip-stats').innerHTML = `
       ⚔ Damage: ${def.damage} | 🎯 Range: ${def.range}<br>
       ⚡ Fire Rate: ${def.fireRate}/s | 💥 AoE: ${def.aoe || 'None'}<br>
-      🛡 Armor Pierce: ${def.armorPierce || 'None'}<br>
+      🛡 Armor Pierce: ${def.armorPierce || 'None'}${def.hitsFlying ? ' | ✈ Hits Flying' : ''}<br>
       <em style="color:var(--spire-gold); font-size:10px;">Upgrades: ${def.upgrades.map(u => u.name).join(' → ')}</em>
     `;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -2575,6 +2810,12 @@ const Game = (function() {
 
   function upgradeSelected() {
     if (selectedPlacedTower) upgradeTower(selectedPlacedTower);
+    updateSidebarInfo();
+  }
+
+  function cycleTargetMode() {
+    if (!selectedPlacedTower) return;
+    selectedPlacedTower.cycleTargetMode();
     updateSidebarInfo();
   }
 
@@ -2617,6 +2858,7 @@ const Game = (function() {
       case '1': selectTowerType('archer'); break;
       case '2': selectTowerType('mage'); break;
       case '3': selectTowerType('cannon'); break;
+      case 't': cycleTargetMode(); break;
     }
   }
 
@@ -2625,7 +2867,7 @@ const Game = (function() {
     init, startGame, newGame: (ngp) => { newGamePlus = !!ngp; newGame(ngp); }, returnToTitle,
     togglePause, setSpeed,
     startNextWave,
-    upgradeSelected, sellSelected,
+    upgradeSelected, sellSelected, cycleTargetMode,
     // Expose for HTML onclick
   };
 })();

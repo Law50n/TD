@@ -1934,10 +1934,14 @@ class GameMap {
           ctx.fillStyle = 'rgba(90,70,120,0.3)';
           ctx.fillRect(x+1, y+1, tw-2, th-2);
         } else if (type === 'build') {
-          // Buildable grass-like tiles with subtle grid
+          // Buildable tiles: checkerboard base + a faint inner panel edge
+          // so each tile reads as a cut stone block rather than flat color
           const shade = (c + r) % 2 === 0 ? '#0d0a1a' : '#0f0c1e';
           ctx.fillStyle = shade;
           ctx.fillRect(x, y, tw, th);
+          ctx.strokeStyle = 'rgba(255,255,255,0.035)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x + 1.5, y + 1.5, tw - 3, th - 3);
         } else if (type === 'tower') {
           ctx.fillStyle = '#12101f';
           ctx.fillRect(x, y, tw, th);
@@ -1962,10 +1966,38 @@ class GameMap {
       }
       ctx.stroke();
 
+      // Flagstone joints: perpendicular ticks along the corridor, spaced
+      // by distance travelled — reads as paved road instead of a blob line
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(15,8,25,0.5)';
+      ctx.lineWidth = 2;
+      const tickSpacing = Math.max(tw, th) * 0.9;
+      const tickHalf = (Math.max(tw, th) - 4) * 0.45;
+      let acc = 0;
+      for (let i = 1; i < this.worldPath.length; i++) {
+        const a = this.worldPath[i - 1], b = this.worldPath[i];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const segLen = Math.hypot(dx, dy);
+        if (segLen < 1) continue;
+        const nx = -dy / segLen, ny = dx / segLen;
+        let d = tickSpacing - (acc % tickSpacing);
+        while (d < segLen) {
+          const px = a.x + dx * (d / segLen), py = a.y + dy * (d / segLen);
+          ctx.beginPath();
+          ctx.moveTo(px + nx * tickHalf, py + ny * tickHalf);
+          ctx.lineTo(px - nx * tickHalf, py - ny * tickHalf);
+          ctx.stroke();
+          d += tickSpacing;
+        }
+        acc += segLen;
+      }
+
       // Path edge lines
       ctx.strokeStyle = `rgba(139,92,246,${0.15 + pulse * 0.1})`;
       ctx.lineWidth = 1;
-      ctx.shadowBlur = 0;
+      ctx.beginPath();
+      ctx.moveTo(this.worldPath[0].x, this.worldPath[0].y);
+      for (let i = 1; i < this.worldPath.length; i++) ctx.lineTo(this.worldPath[i].x, this.worldPath[i].y);
       ctx.stroke();
       ctx.restore();
     }
@@ -1995,18 +2027,39 @@ class GameMap {
       ctx.restore();
     }
 
-    // "The Breach" gate marker — light mazing. Only on maps that have it, and while unsealed.
+    // "The Breach" gate marker — light mazing. Only on maps that have it,
+    // and while unsealed. Drawn as a rotating arcane rune-seal rather than
+    // an emoji, since nothing in the emoji set reads as "arcane gate."
     if (this.hasGate && !this.gateSealed) {
       const g = this.tileToWorld(GATE_TILE.c, GATE_TILE.r);
       const gp = 0.5 + 0.5 * Math.sin(this.animTime * 2.2);
+      const gr = Math.max(tw, th) * 0.34;
       ctx.save();
       ctx.shadowColor = '#4fc3f7';
-      ctx.shadowBlur = 10 + 6 * gp;
-      ctx.font = `${Math.max(tw * 0.8, 16)}px serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.globalAlpha = 0.85;
-      ctx.fillText('🚧', g.x, g.y);
+      ctx.shadowBlur = 8 + 6 * gp;
+      ctx.strokeStyle = `rgba(79,195,247,${0.55 + 0.3 * gp})`;
+      ctx.lineWidth = 2;
+      pathPolygon(ctx, g.x, g.y, gr, 6, this.animTime * 0.4);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(160,230,255,${0.45 + 0.3 * gp})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(g.x, g.y, gr * 0.55, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(79,195,247,${0.3 + 0.25 * gp})`;
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 6; i++) {
+        const a = this.animTime * 0.4 + (i / 6) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(g.x + Math.cos(a) * gr * 0.55, g.y + Math.sin(a) * gr * 0.55);
+        ctx.lineTo(g.x + Math.cos(a) * gr, g.y + Math.sin(a) * gr);
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#d6f4ff';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(g.x, g.y, gr * 0.14 + gp * 1.5, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     }
 
@@ -2025,6 +2078,20 @@ class GameMap {
       ctx.lineTo(ox + c * tw, oy + th * this.rows);
       ctx.stroke();
     }
+
+    // Vignette: one large radial gradient over the whole map, darkening
+    // the edges so the battlefield reads with some depth instead of
+    // uniformly flat-lit from corner to corner. Cheap — a single gradient
+    // and fillRect per frame, not per-tile.
+    const mapW = tw * this.cols, mapH = th * this.rows;
+    const vignette = ctx.createRadialGradient(
+      ox + mapW / 2, oy + mapH / 2, Math.min(mapW, mapH) * 0.28,
+      ox + mapW / 2, oy + mapH / 2, Math.max(mapW, mapH) * 0.75
+    );
+    vignette.addColorStop(0, 'rgba(0,0,0,0)');
+    vignette.addColorStop(1, 'rgba(0,0,0,0.4)');
+    ctx.fillStyle = vignette;
+    ctx.fillRect(ox, oy, mapW, mapH);
 
     // Selected tile highlight
     if (selectedTile) {
@@ -2072,6 +2139,56 @@ class GameMap {
       ctx.restore();
     }
   }
+}
+
+// ============================================================
+// SECTION 4B: SHARED CANVAS RENDER HELPERS
+// Small primitives reused by Tower/Enemy/GameMap draw() methods to give
+// everything on the canvas a consistent, slightly-3D "painted" look
+// without needing actual art assets.
+// ============================================================
+function pathPolygon(ctx, cx, cy, r, sides, rotation = 0) {
+  ctx.beginPath();
+  for (let i = 0; i <= sides; i++) {
+    const a = rotation + (i / sides) * Math.PI * 2;
+    const px = cx + Math.cos(a) * r, py = cy + Math.sin(a) * r;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+function fillDiamond(ctx, cx, cy, r) {
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - r);
+  ctx.lineTo(cx + r, cy);
+  ctx.lineTo(cx, cy + r);
+  ctx.lineTo(cx - r, cy);
+  ctx.closePath();
+  ctx.fill();
+}
+function drawGroundShadow(ctx, x, y, rx, ry, alpha = 0.35) {
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+// Mixes a #rrggbb (or #rgb) color toward white by `amt` (0-1) — used to
+// fake a light-source highlight on an otherwise flat fill color.
+const _lightenCache = new Map();
+function lightenColor(hex, amt) {
+  const key = hex + '|' + amt;
+  if (_lightenCache.has(key)) return _lightenCache.get(key);
+  const c = hex.replace('#', '');
+  const full = c.length === 3 ? c.split('').map(ch => ch + ch).join('') : c;
+  const num = parseInt(full, 16);
+  const r = Math.min(255, Math.round(((num >> 16) & 255) + (255 - ((num >> 16) & 255)) * amt));
+  const g = Math.min(255, Math.round(((num >> 8) & 255) + (255 - ((num >> 8) & 255)) * amt));
+  const b = Math.min(255, Math.round((num & 255) + (255 - (num & 255)) * amt));
+  const out = `rgb(${r},${g},${b})`;
+  _lightenCache.set(key, out);
+  return out;
 }
 
 // ============================================================
@@ -2180,64 +2297,91 @@ class Tower {
     const recoilX = Math.cos(this.aimAngle) * this.recoilOffset;
     const recoilY = Math.sin(this.aimAngle) * this.recoilOffset;
     const baseSize = Math.max(tw * 0.38, 8);
+    const bx = x + recoilX * 0.5, by = y + recoilY * 0.5;
 
     ctx.save();
     if (this.stunTimer > 0) ctx.globalAlpha = 0.4;
-    // Tower base glow
-    ctx.shadowColor = this.def.glowColor;
-    ctx.shadowBlur = 10 + 4 * Math.sin(gameTime * 1.8);
 
-    // Base platform
-    ctx.fillStyle = '#1a1030';
+    // Ground shadow — gives the tower actual weight on the tile
+    drawGroundShadow(ctx, x, y + baseSize * 0.5, baseSize * 0.95, baseSize * 0.38);
+
+    // Base plinth: octagon (echoes the menu buttons' cut-corner motif),
+    // radial-shaded so it reads as a lit platform rather than a flat disc.
+    ctx.shadowColor = this.def.glowColor;
+    ctx.shadowBlur = 8 + 4 * Math.sin(gameTime * 1.8);
+    const plinthR = baseSize + 3;
+    const plinthGrad = ctx.createRadialGradient(x, y - plinthR * 0.3, plinthR * 0.1, x, y, plinthR);
+    plinthGrad.addColorStop(0, '#2c2044');
+    plinthGrad.addColorStop(1, '#140d24');
+    ctx.fillStyle = plinthGrad;
+    pathPolygon(ctx, x, y, plinthR, 8, Math.PI / 8);
+    ctx.fill();
     ctx.strokeStyle = this.def.color;
     ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(x, y, baseSize + 2, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+    ctx.lineWidth = 1;
+    pathPolygon(ctx, x, y, plinthR - 3, 8, Math.PI / 8);
     ctx.stroke();
 
-    // Tower body
+    // Tower body: a lit sphere (gradient highlight toward upper-left) so
+    // it has volume instead of being a flat-filled circle.
+    const bodyR = baseSize * 0.68;
+    const bodyGrad = ctx.createRadialGradient(bx - bodyR * 0.35, by - bodyR * 0.4, bodyR * 0.15, bx, by, bodyR);
+    bodyGrad.addColorStop(0, lightenColor(this.def.color, 0.55));
+    bodyGrad.addColorStop(1, this.def.color);
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.arc(bx, by, bodyR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Barrel: a tapered wedge (not a bare line) with a glowing muzzle tip
+    ctx.shadowBlur = 6;
+    const barrelLen = baseSize * 1.35;
+    const barrelW = Math.max(tw * 0.16, 3.5);
+    const ang = this.aimAngle;
+    const px_ = Math.cos(ang + Math.PI / 2) * barrelW * 0.5, py_ = Math.sin(ang + Math.PI / 2) * barrelW * 0.5;
+    const tipX = bx + Math.cos(ang) * barrelLen, tipY = by + Math.sin(ang) * barrelLen;
+    const tpx = Math.cos(ang + Math.PI / 2) * barrelW * 0.22, tpy = Math.sin(ang + Math.PI / 2) * barrelW * 0.22;
     ctx.fillStyle = this.def.color;
     ctx.beginPath();
-    ctx.arc(x + recoilX * 0.5, y + recoilY * 0.5, baseSize * 0.7, 0, Math.PI * 2);
+    ctx.moveTo(bx + px_, by + py_);
+    ctx.lineTo(tipX + tpx, tipY + tpy);
+    ctx.lineTo(tipX - tpx, tipY - tpy);
+    ctx.lineTo(bx - px_, by - py_);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = this.def.projectileColor || '#fff';
+    ctx.shadowBlur = 9;
+    ctx.beginPath();
+    ctx.arc(tipX, tipY, barrelW * 0.32, 0, Math.PI * 2);
     ctx.fill();
 
-    // Tower barrel / direction indicator
-    ctx.strokeStyle = this.def.color;
-    ctx.lineWidth = Math.max(tw * 0.15, 3);
-    ctx.lineCap = 'round';
-    ctx.shadowBlur = 6;
-    const barrelLen = baseSize * 1.3;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(
-      x + Math.cos(this.aimAngle) * barrelLen + recoilX,
-      y + Math.sin(this.aimAngle) * barrelLen + recoilY
-    );
-    ctx.stroke();
-
-    // Upgrade level indicator dots
+    // Upgrade level markers: small gems ringing the plinth
     if (this.level > 0) {
-      ctx.fillStyle = this.level >= 2 ? '#ffd700' : '#a78bfa';
-      ctx.shadowColor = this.level >= 2 ? '#ffd700' : '#a78bfa';
+      const gemColor = this.level >= 2 ? '#ffd700' : '#a78bfa';
+      ctx.fillStyle = gemColor;
+      ctx.shadowColor = gemColor;
       ctx.shadowBlur = 8;
       for (let i = 0; i < this.level; i++) {
-        const dotAngle = -Math.PI/2 + (i - (this.level-1)/2) * 0.6;
-        ctx.beginPath();
-        ctx.arc(x + Math.cos(dotAngle) * (baseSize + 4), y + Math.sin(dotAngle) * (baseSize + 4), 2.5, 0, Math.PI * 2);
-        ctx.fill();
+        const dotAngle = -Math.PI / 2 + (i - (this.level - 1) / 2) * 0.6;
+        fillDiamond(ctx, x + Math.cos(dotAngle) * (plinthR + 5), y + Math.sin(dotAngle) * (plinthR + 5), 3);
       }
     }
 
-    // SCALABILITY NOTE: To replace emoji/canvas drawing with sprites,
-    // add: ctx.drawImage(towerSprites[this.id], x - tw/2, y - th/2, tw, th);
-    // For now, emoji is rendered as text above tower
-    ctx.font = `${Math.max(baseSize * 0.9, 8)}px serif`;
+    // Icon accent, sitting on the body rather than floating above it.
+    // SCALABILITY NOTE: swap for ctx.drawImage(towerSprites[this.id], ...)
+    // once real sprite art exists — the layers above already give the
+    // silhouette and lighting, this is just the identifying glyph.
+    ctx.font = `${Math.max(bodyR * 1.05, 8)}px serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowBlur = 0;
-    ctx.globalAlpha = 0.85;
-    ctx.fillText(this.def.emoji, x, y - baseSize * 0.1);
+    ctx.globalAlpha *= 0.92;
+    ctx.fillText(this.def.emoji, bx, by - bodyR * 0.05);
     ctx.restore();
   }
 }
@@ -2375,6 +2519,7 @@ class Enemy {
     this.animTime = Math.random() * Math.PI * 2; // random anim phase
     this.slowTimer = 0;
     this.slowFactor = 0;
+    this.facingAngle = 0;
     // Boss state: bossAbility is an array of ability configs the boss
     // cycles through (telegraphed, then executed) on its own timer.
     this.isBoss = !!def.boss;
@@ -2444,6 +2589,7 @@ class Enemy {
       const next = this.worldPath[this.pathProgress + 1];
       this.x = curr.x + (next.x - curr.x) * this.pathFraction;
       this.y = curr.y + (next.y - curr.y) * this.pathFraction;
+      this.facingAngle = Math.atan2(next.y - curr.y, next.x - curr.x);
     } else {
       this.x = this.worldPath[this.worldPath.length - 1].x;
       this.y = this.worldPath[this.worldPath.length - 1].y;
@@ -2515,15 +2661,58 @@ class Enemy {
       ctx.restore();
     }
 
+    // Ground shadow, cast toward the path rather than straight down so it
+    // doesn't wander with the bounce animation
+    drawGroundShadow(ctx, this.x, this.y + size * 0.4, size * 0.9, size * 0.35, 0.3);
+
     ctx.save();
     ctx.shadowColor = this.def.glowColor;
     ctx.shadowBlur = 8;
 
-    // Enemy body
-    ctx.fillStyle = this.def.color;
+    // Body: lit sphere (highlight opposite the facing direction, like a
+    // key light) instead of a flat disc
+    const hlAngle = this.facingAngle + Math.PI * 0.85;
+    const bodyGrad = ctx.createRadialGradient(
+      x + Math.cos(hlAngle) * size * 0.35, y + Math.sin(hlAngle) * size * 0.35, size * 0.1,
+      x, y, size
+    );
+    bodyGrad.addColorStop(0, lightenColor(this.def.color, 0.5));
+    bodyGrad.addColorStop(1, this.def.color);
+    ctx.fillStyle = bodyGrad;
     ctx.beginPath();
     ctx.arc(x, y, size, 0, Math.PI * 2);
     ctx.fill();
+
+    // Armor plating hint for tanky enemies (data-driven off `armor`, so any
+    // future high-armor def picks this up automatically)
+    if (this.def.armor >= 15) {
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+      ctx.lineWidth = Math.max(1.5, size * 0.14);
+      pathPolygon(ctx, x, y, size * 0.82, 6, this.animTime * 0.15);
+      ctx.stroke();
+    }
+    // Facing "nose" — a small wedge in the direction of travel, the
+    // cheapest way to make a creature read as moving somewhere
+    ctx.fillStyle = lightenColor(this.def.color, 0.25);
+    ctx.beginPath();
+    ctx.moveTo(x + Math.cos(this.facingAngle) * size * 1.15, y + Math.sin(this.facingAngle) * size * 1.15);
+    ctx.lineTo(x + Math.cos(this.facingAngle + 2.5) * size * 0.55, y + Math.sin(this.facingAngle + 2.5) * size * 0.55);
+    ctx.lineTo(x + Math.cos(this.facingAngle - 2.5) * size * 0.55, y + Math.sin(this.facingAngle - 2.5) * size * 0.55);
+    ctx.closePath();
+    ctx.fill();
+    // Motion streak for fast enemies
+    if (this.def.speed >= 80) {
+      ctx.strokeStyle = this.def.glowColor;
+      ctx.lineWidth = 1.5;
+      for (let i = 1; i <= 2; i++) {
+        ctx.globalAlpha = 0.35 / i;
+        ctx.beginPath();
+        ctx.moveTo(x - Math.cos(this.facingAngle) * size * (0.9 + i * 0.6), y - Math.sin(this.facingAngle) * size * (0.9 + i * 0.6));
+        ctx.lineTo(x - Math.cos(this.facingAngle) * size * (1.6 + i * 0.6), y - Math.sin(this.facingAngle) * size * (1.6 + i * 0.6));
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
 
     // Slowed tint (Frost Warden effect)
     if (this.slowTimer > 0) {
@@ -2533,11 +2722,11 @@ class Enemy {
       ctx.fill();
     }
 
-    // Inner glow
-    ctx.fillStyle = this.def.glowColor;
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(x, y, size * 0.5, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.stroke();
 
     // SCALABILITY NOTE: Replace emoji with drawImage() for sprites
     ctx.font = `${size * 1.1}px serif`;

@@ -354,6 +354,24 @@
   .achievement-card.unlocked .ach-name { color: var(--spire-gold-light); }
   .achievement-card .ach-desc { font-size: 11px; color: var(--text-dim); margin-top: 4px; line-height: 1.6; }
 
+  /* ===== MAP SELECT SCREEN ===== */
+  .map-card {
+    background: rgba(45,27,78,0.3);
+    border: 1px solid rgba(139,92,246,0.25);
+    padding: 16px 18px;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .map-card:hover { border-color: var(--spire-gold); background: rgba(45,27,78,0.6); }
+  .map-card .map-emoji { font-size: 30px; flex-shrink: 0; }
+  .map-card .map-name { font-family: 'Cinzel Decorative', serif; font-size: 15px; color: var(--spire-gold-light); margin-bottom: 4px; }
+  .map-card .map-desc { font-size: 12px; color: var(--text-dim); line-height: 1.6; }
+  .map-card .map-tag { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--rune-cyan); margin-top: 6px; }
+
   /* ===== GAME SCREEN ===== */
   #screen-game {
     flex-direction: row;
@@ -758,11 +776,13 @@
       You are all that remains.
     </p>
     <div class="menu-buttons">
-      <button class="btn-primary" onclick="Game.startGame()">⚡ Begin Your Vigil</button>
+      <button class="btn-primary" onclick="Game.openMapSelect()">⚡ Begin Your Vigil</button>
+      <button class="btn-secondary" onclick="Game.openMapSelect(true)">🗓 Daily Vigil</button>
       <button class="btn-secondary" onclick="Game.openSanctum()">🏛 The Sanctum</button>
       <button class="btn-secondary" onclick="showScreen('lore')">📜 Lore Codex</button>
       <button class="btn-secondary" onclick="showScreen('howto')">⚔ How to Play</button>
       <div id="best-wave-display" style="font-size:11px; color: var(--text-dim); margin-top:8px; font-style:italic;"></div>
+      <div id="daily-best-display" style="font-size:11px; color: var(--text-dim); font-style:italic;"></div>
       <div id="essence-display" style="font-size:11px; color: var(--rune-cyan); margin-top:2px; font-style:italic;"></div>
     </div>
   </div>
@@ -876,7 +896,14 @@
           <li>15 waves of increasing difficulty</li>
           <li>Press "Next Wave" to start when ready</li>
           <li>Once a wave finishes spawning, call the next one <em>early</em> for bonus gold — with its stragglers still on the path</li>
-          <li>Each wave brings new enemy compositions</li>
+          <li>Beat wave 15 and choose to Continue into the Void — endless, procedurally generated waves for as long as you can hold</li>
+        </ul>
+      </div>
+      <div class="howto-card">
+        <h4>🗺 Battlefields</h4>
+        <ul>
+          <li>Choose your map before each vigil — a tight, mazeable loop or a long, exposed corridor</li>
+          <li>🗓 Daily Vigil is the same map + modifier for everyone that day — come back tomorrow for a new one</li>
         </ul>
       </div>
       <div class="howto-card">
@@ -920,6 +947,21 @@
     <div id="sanctum-upgrades" class="howto-grid"></div>
     <div style="font-size:11px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase; margin:20px 0 8px;">Achievements</div>
     <div id="sanctum-achievements" class="howto-grid"></div>
+    <div style="text-align:center; margin-top:24px;">
+      <button class="btn-secondary" onclick="showScreen('title')">← Return to the Vigil</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MAP SELECT SCREEN ==================== -->
+<div class="screen" id="screen-mapselect">
+  <div class="howto-container" style="border-top-color: var(--spire-gold); max-width: 700px;">
+    <div style="text-align:center; margin-bottom:8px;">
+      <div class="codex-title" id="mapselect-title">Choose Your Battlefield</div>
+      <div id="mapselect-subtitle" style="font-size:12px; color:var(--text-dim); font-style:italic; margin-top:4px;"></div>
+      <div class="title-divider" style="opacity:1; margin-top:12px;"></div>
+    </div>
+    <div id="mapselect-cards" style="display:flex; flex-direction:column; gap:14px; margin-top:16px;"></div>
     <div style="text-align:center; margin-top:24px;">
       <button class="btn-secondary" onclick="showScreen('title')">← Return to the Vigil</button>
     </div>
@@ -1008,7 +1050,8 @@
     </div>
     <div class="overlay-stat" id="win-stats"></div>
     <div class="overlay-buttons">
-      <button class="btn-primary" onclick="Game.newGame()">⚡ New Game+ (Harder)</button>
+      <button class="btn-primary" onclick="Game.continueEndless()">🌀 Continue into the Void</button>
+      <button class="btn-secondary" onclick="Game.newGame()">⚡ New Game+ (Harder)</button>
       <button class="btn-secondary" onclick="Game.returnToTitle()">🏠 Return to Title</button>
     </div>
   </div>
@@ -1417,6 +1460,33 @@ const MAP1_PATH_LONG = [
   [19,2],[20,2],[21,2],[22,2],[23,2]
 ];
 
+// --- MAP 2: "The Long Road" ---
+// SCALABILITY NOTE: A second map, plain serpentine geometry (no mazing
+// gate — that's map-1-specific content for now). Nearly twice the tile
+// length of Map 1's tighter loop, which is a deliberate difference: this
+// map trades chokepoint puzzling for a long, exposed corridor.
+const MAP2_PATH = [
+  [0,1],[1,1],[2,1],[3,1],[4,1],[5,1],[6,1],[7,1],[8,1],[9,1],[10,1],[11,1],[12,1],[13,1],[14,1],[15,1],[16,1],[17,1],[18,1],[19,1],[20,1],[21,1],[22,1],[23,1],
+  [23,2],[23,3],[23,4],
+  [22,4],[21,4],[20,4],[19,4],[18,4],[17,4],[16,4],[15,4],[14,4],[13,4],[12,4],[11,4],[10,4],[9,4],[8,4],[7,4],[6,4],[5,4],[4,4],[3,4],[2,4],[1,4],[0,4],
+  [0,5],[0,6],[0,7],
+  [1,7],[2,7],[3,7],[4,7],[5,7],[6,7],[7,7],[8,7],[9,7],[10,7],[11,7],[12,7],[13,7],[14,7],[15,7],[16,7],[17,7],[18,7],[19,7],[20,7],[21,7],[22,7],[23,7],
+  [23,8],[23,9],[23,10],
+  [22,10],[21,10],[20,10],[19,10],[18,10],[17,10],[16,10],[15,10],[14,10],[13,10],[12,10],[11,10],[10,10],[9,10],[8,10],[7,10],[6,10],[5,10],[4,10],[3,10],[2,10],[1,10],[0,10],
+  [0,11],[0,12],
+  [1,12],[2,12],[3,12],[4,12],[5,12],[6,12],[7,12],[8,12],[9,12],[10,12],[11,12],[12,12],[13,12],[14,12],[15,12],[16,12],[17,12],[18,12],[19,12],[20,12],[21,12],[22,12],[23,12]
+];
+
+// --- MAP REGISTRY ---
+// SCALABILITY NOTE: Add MAP3_PATH the same way, then add an entry here —
+// the map-select screen and newGame() both just iterate this array.
+const MAPS = [
+  { id: 'map1', name: 'The Shattered Gate', emoji: '🌀', path: MAP1_PATH,
+    desc: 'A tight, coiled path through the ruins. Room to maze — seal "The Breach" to buy time at the cost of gold.', hasGate: true },
+  { id: 'map2', name: 'The Long Road', emoji: '🛤', path: MAP2_PATH,
+    desc: 'A long, exposed corridor with nowhere to hide. No chokepoints — just distance, and how you use it.', hasGate: false },
+];
+
 // --- META-PROGRESSION: Sanctum upgrades ---
 // SCALABILITY NOTE: One-time purchases, paid for with Warden Essence
 // (earned at the end of every run, win or lose). 'effect' keys are read by
@@ -1433,6 +1503,18 @@ const META_UPGRADES = [
     desc: 'Sell towers for 75% of cost instead of 60%.', effect: { sellRate: 0.75 } },
   { id: 'unlock_frost', name: 'Unlock: Frost Warden', emoji: '❄️', cost: 120,
     desc: 'A new tower that slows enemies in an icy field.', effect: { unlockTower: 'frost' } },
+];
+
+// --- DAILY VIGIL: seeded modifiers ---
+// SCALABILITY NOTE: One is picked deterministically from today's date (see
+// Game.getDailySeed), so every player gets the same modifier + map on the
+// same day and can compare "how far did you get today." There's no server
+// here, so this is a personal daily best, not a live cross-player board —
+// framed that way in the UI on purpose.
+const DAILY_MODIFIERS = [
+  { id: 'austerity', name: 'Austerity', emoji: '🪙', desc: '-25% starting Gold.' },
+  { id: 'no_pause', name: 'No Mercy', emoji: '⏸', desc: 'Pausing is disabled.' },
+  { id: 'glass', name: 'Glass Cannon', emoji: '💥', desc: 'Towers cost +20% but hit +20% harder.' },
 ];
 
 // --- ACHIEVEMENTS ---
@@ -1732,7 +1814,7 @@ class ParticleSystem {
 // The GameMap can be instantiated with different path arrays.
 // ============================================================
 class GameMap {
-  constructor(canvas, pathCoords) {
+  constructor(canvas, pathCoords, hasGate) {
     this.canvas = canvas;
     this.pathCoords = pathCoords;
     this.cols = GRID_COLS;
@@ -1747,6 +1829,7 @@ class GameMap {
     this.buildable = new Set(); // set of "col,row" that can be built on
     this.towers = new Map(); // "col,row" -> Tower instance
     this.animTime = 0;
+    this.hasGate = !!hasGate; // whether this map has "The Breach" mazing gate at all
     this.gateSealed = false; // light mazing: has "The Breach" gate been sealed this run?
     this._init();
   }
@@ -1793,7 +1876,7 @@ class GameMap {
   // this point on; enemies already on the path keep the shorter route they
   // spawned with, since each Enemy captured its own worldPath reference.
   sealGate() {
-    if (this.gateSealed) return { ok: false, reason: 'already' };
+    if (!this.hasGate || this.gateSealed) return { ok: false, reason: 'no-gate' };
     const blocked = MAP1_PATH_LONG_DETOUR_TILES.some(([c, r]) => this.towers.has(`${c},${r}`));
     if (blocked) return { ok: false, reason: 'blocked' };
     this.gateSealed = true;
@@ -1814,7 +1897,7 @@ class GameMap {
     return { c, r };
   }
   isBuildable(c, r) {
-    if (c === GATE_TILE.c && r === GATE_TILE.r) return false;
+    if (this.hasGate && c === GATE_TILE.c && r === GATE_TILE.r) return false;
     return c >= 0 && c < this.cols && r >= 0 && r < this.rows
       && this.tiles[r][c] === 'build'
       && !this.towers.has(`${c},${r}`);
@@ -1912,8 +1995,8 @@ class GameMap {
       ctx.restore();
     }
 
-    // "The Breach" gate marker — light mazing. Only shown while unsealed.
-    if (!this.gateSealed) {
+    // "The Breach" gate marker — light mazing. Only on maps that have it, and while unsealed.
+    if (this.hasGate && !this.gateSealed) {
       const g = this.tileToWorld(GATE_TILE.c, GATE_TILE.r);
       const gp = 0.5 + 0.5 * Math.sin(this.animTime * 2.2);
       ctx.save();
@@ -2522,15 +2605,35 @@ class WaveManager {
   get waveComplete() {
     return this.allEnemiesSpawned && this.spawnQueue.length === 0;
   }
+  // Procedurally extends past the last defined wave for Endless Mode:
+  // escalating counts drawn from the regular (non-boss) roster, plus a
+  // rotating "echo" of one of the three named bosses every third wave so
+  // endless play keeps a raid-like rhythm instead of flattening into noise.
+  generateEndlessWaveDef(waveNum) {
+    const n = waveNum - this.waveDefs.length; // 1, 2, 3... beyond the campaign
+    const pool = this.enemyDefs.filter(d => !d.boss && d.id !== 'splitling');
+    const groups = [];
+    const numGroups = Math.min(3, 1 + Math.floor(n / 3));
+    for (let i = 0; i < numGroups; i++) {
+      const def = pool[Math.floor(Math.random() * pool.length)];
+      groups.push({ type: def.id, count: 8 + Math.floor(n * 1.5) + i * 3, interval: Math.max(200, 700 - n * 10), delay: i * 4500 });
+    }
+    if (n % 3 === 0) {
+      const bossPool = ['warden_breaker', 'archon_ravager', 'sovereign_void'];
+      const bossId = bossPool[(Math.floor(n / 3) - 1) % bossPool.length];
+      groups.push({ type: bossId, count: 1, interval: 1000, delay: groups.length * 5000 + 3000 });
+    }
+    return { wave: waveNum, lore: `Endless Wave ${n} — the Void does not tire, and neither, it seems, do you.`, enemies: groups };
+  }
   startWave(waveNum, enemies, worldPath) {
     this.currentWave = waveNum;
     this.active = true;
     this.allEnemiesSpawned = false;
-    const waveDef = this.waveDefs[waveNum - 1];
-    if (!waveDef) return;
+    const waveDef = this.waveDefs[waveNum - 1] || this.generateEndlessWaveDef(waveNum);
+    this.currentWaveDef = waveDef;
     // Build spawn queue
     this.spawnQueue = [];
-    const waveMultiplier = 1 + (waveNum - 1) * 0.15; // 15% harder each wave
+    const waveMultiplier = 1 + (waveNum - 1) * 0.15; // 15% harder each wave, unchanged into Endless
     waveDef.enemies.forEach(group => {
       for (let i = 0; i < group.count; i++) {
         const enemyDef = this.enemyDefs.find(e => e.id === group.type || e.id === 'crawler');
@@ -2556,13 +2659,16 @@ class WaveManager {
       s.spawned = true;
       enemies.push(new Enemy(s.def, worldPath, s.waveMultiplier));
     });
-    if (this.spawnQueue.every(e => e.spawned)) {
+    // Drop spawned entries so spawnQueue actually empties out — waveComplete
+    // (and therefore natural wave-clear / victory) depends on this reaching
+    // length 0, not just every entry being flagged spawned in place.
+    this.spawnQueue = this.spawnQueue.filter(e => !e.spawned);
+    if (this.spawnQueue.length === 0) {
       this.allEnemiesSpawned = true;
     }
   }
   getCurrentLore() {
-    const def = this.waveDefs[this.currentWave - 1];
-    return def ? def.lore : '';
+    return this.currentWaveDef ? this.currentWaveDef.lore : '';
   }
 }
 
@@ -2591,6 +2697,12 @@ const Game = (function() {
   let runArchonKills = 0;
   let runSovereignSlain = false;
   let runEssenceAwarded = 0;
+  // Persist across newGame() calls so "New Game+" replays the same choice
+  let selectedMapId = 'map1';
+  let dailyModifierId = null;
+  let dailyMode = false;
+  let endlessMode = false;
+  let pendingDaily = false; // set by openMapSelect(true), read by the map-select screen
 
   // ---- META-PROGRESSION (persisted across runs) ----
   const META_KEYS = { essence: 'eternalspire_essence', purchases: 'eternalspire_purchases', achievements: 'eternalspire_achievements', totals: 'eternalspire_totals' };
@@ -2620,6 +2732,37 @@ const Game = (function() {
   function isTowerUnlocked(def) {
     if (!def.requiresUpgrade) return true;
     return getPurchases().has(def.requiresUpgrade);
+  }
+  // Today's "Glass Cannon" daily modifier raises tower cost (and, at
+  // placement, damage) by 20% — this is the shared cost lookup so the
+  // sidebar card, affordability styling, and the actual purchase agree.
+  function effectiveTowerCost(def) {
+    return dailyModifierId === 'glass' ? Math.ceil(def.cost * 1.2) : def.cost;
+  }
+
+  // ---- DAILY VIGIL ----
+  // Deterministic per-day map + modifier from today's UTC date, so every
+  // player sees the same challenge on the same day. There's no backend
+  // here, so "compare" means your own history, not a live leaderboard —
+  // the UI is worded accordingly.
+  function todayKey() { return new Date().toISOString().slice(0, 10); }
+  function getDailySeed() {
+    const dateStr = todayKey();
+    let hash = 0;
+    for (let i = 0; i < dateStr.length; i++) hash = (hash * 31 + dateStr.charCodeAt(i)) >>> 0;
+    const map = MAPS[hash % MAPS.length];
+    const modifier = DAILY_MODIFIERS[Math.floor(hash / MAPS.length) % DAILY_MODIFIERS.length];
+    return { dateStr, map, modifier };
+  }
+  function getDailyBest(dateStr) { return parseInt(localStorage.getItem('eternalspire_daily_' + dateStr) || '0'); }
+  function recordDailyBest(dateStr, wave) {
+    if (wave > getDailyBest(dateStr)) localStorage.setItem('eternalspire_daily_' + dateStr, String(wave));
+  }
+  function updateDailyBestDisplay() {
+    const el = document.getElementById('daily-best-display');
+    if (!el) return;
+    const best = getDailyBest(todayKey());
+    el.textContent = best > 0 ? `Today's Vigil best: Wave ${best}` : '';
   }
 
   // ---- INIT ----
@@ -2661,6 +2804,7 @@ const Game = (function() {
     if (el && best > 0) el.textContent = `Best: Wave ${best} reached`;
     const essEl = document.getElementById('essence-display');
     if (essEl) essEl.textContent = `✨ ${getEssence()} Warden Essence`;
+    updateDailyBestDisplay();
   }
 
   function resizeHandler() {
@@ -2676,13 +2820,64 @@ const Game = (function() {
   }
 
   // ---- SCREEN MANAGEMENT ----
-  function startGame() {
-    audio.init();
-    showScreen('game');
-    newGame(false);
+  function openMapSelect(isDaily) {
+    pendingDaily = !!isDaily;
+    renderMapSelect();
+    showScreen('mapselect');
   }
 
-  function newGame(isNewGamePlus) {
+  function renderMapSelect() {
+    const titleEl = document.getElementById('mapselect-title');
+    const subEl = document.getElementById('mapselect-subtitle');
+    const cardsEl = document.getElementById('mapselect-cards');
+    if (pendingDaily) {
+      const seed = getDailySeed();
+      const best = getDailyBest(seed.dateStr);
+      titleEl.textContent = "🗓 Today's Vigil";
+      subEl.textContent = best > 0 ? `Your best today: Wave ${best}` : 'Same challenge for everyone today — come back tomorrow for a new one.';
+      cardsEl.innerHTML = `
+        <div class="map-card" onclick="Game.confirmDailyVigil()">
+          <span class="map-emoji">${seed.map.emoji}</span>
+          <div>
+            <div class="map-name">${seed.map.name}</div>
+            <div class="map-desc">${seed.map.desc}</div>
+            <div class="map-tag">${seed.modifier.emoji} ${seed.modifier.name} — ${seed.modifier.desc}</div>
+          </div>
+        </div>`;
+    } else {
+      titleEl.textContent = 'Choose Your Battlefield';
+      subEl.textContent = 'Every vigil begins with a choice of ground.';
+      cardsEl.innerHTML = MAPS.map(m => `
+        <div class="map-card" onclick="Game.confirmMapChoice('${m.id}')">
+          <span class="map-emoji">${m.emoji}</span>
+          <div>
+            <div class="map-name">${m.name}</div>
+            <div class="map-desc">${m.desc}</div>
+          </div>
+        </div>`).join('');
+    }
+  }
+
+  function confirmMapChoice(mapId) {
+    audio.init();
+    showScreen('game');
+    newGame(false, { mapId, dailyModifierId: null });
+  }
+
+  function confirmDailyVigil() {
+    const seed = getDailySeed();
+    audio.init();
+    showScreen('game');
+    newGame(false, { mapId: seed.map.id, dailyModifierId: seed.modifier.id });
+  }
+
+  function newGame(isNewGamePlus, opts) {
+    opts = opts || {};
+    if (opts.mapId) selectedMapId = opts.mapId;
+    if ('dailyModifierId' in opts) dailyModifierId = opts.dailyModifierId;
+    dailyMode = !!dailyModifierId;
+    endlessMode = false;
+
     if (animFrameId) cancelAnimationFrame(animFrameId);
     // Re-measure the canvas now that the game screen is actually visible —
     // the init()-time measurement ran while it was still display:none,
@@ -2691,6 +2886,7 @@ const Game = (function() {
     const meta = getMetaEffects();
     gold = (newGamePlus ? 150 : 200) + meta.startGold;
     lives = (newGamePlus ? 15 : 20) + meta.startLives;
+    if (dailyModifierId === 'austerity') gold = Math.floor(gold * 0.75);
     score = 0;
     totalKills = 0;
     currentWave = 0;
@@ -2709,7 +2905,8 @@ const Game = (function() {
     runSovereignSlain = false;
     runEssenceAwarded = 0;
 
-    gameMap = new GameMap(canvas, MAP1_PATH);
+    const mapDef = MAPS.find(m => m.id === selectedMapId) || MAPS[0];
+    gameMap = new GameMap(canvas, mapDef.path, mapDef.hasGate);
     gameMap.resize(canvas.width, canvas.height);
     waveManager = new WaveManager(WAVE_DEFS, ENEMY_DEFS);
     particles = new ParticleSystem();
@@ -2719,7 +2916,10 @@ const Game = (function() {
     updateSidebar();
     setSpeedButton(1);
 
-    document.getElementById('hud-wave-lore').textContent = 'Awaiting the first assault...';
+    const modifier = DAILY_MODIFIERS.find(m => m.id === dailyModifierId);
+    document.getElementById('hud-wave-lore').textContent = modifier
+      ? `Daily Vigil — ${modifier.name}: ${modifier.desc}`
+      : 'Awaiting the first assault...';
     const nextWaveBtn = document.getElementById('btn-next-wave');
     nextWaveBtn.disabled = false;
     nextWaveBtn.classList.remove('early-call');
@@ -2727,6 +2927,20 @@ const Game = (function() {
 
     lastTime = performance.now();
     animFrameId = requestAnimationFrame(gameLoop);
+  }
+
+  // Lets a win keep going past wave 15 instead of ending the run — the
+  // WaveManager procedurally generates waves 16+ once endlessMode is set.
+  function continueEndless() {
+    endlessMode = true;
+    gameState = 'between_waves';
+    hideAllOverlays();
+    const btn = document.getElementById('btn-next-wave');
+    btn.disabled = false;
+    btn.classList.remove('early-call');
+    btn.textContent = '▶ Next Wave';
+    document.getElementById('hud-wave-lore').textContent = 'The Void does not end. Neither, it seems, do you.';
+    updateHUD();
   }
 
   function returnToTitle() {
@@ -2814,7 +3028,7 @@ const Game = (function() {
     // Once the current wave has finished spawning, allow an early call on
     // the next one for a risk/reward bonus (stragglers keep fighting while
     // the new wave starts spawning on top of them).
-    if (waveManager.active && waveManager.allEnemiesSpawned && currentWave < WAVE_DEFS.length) {
+    if (waveManager.active && waveManager.allEnemiesSpawned && canAdvanceWave()) {
       const btn = document.getElementById('btn-next-wave');
       if (btn.disabled) {
         btn.disabled = false;
@@ -2895,11 +3109,11 @@ const Game = (function() {
     if (waveManager.active && waveManager.waveComplete && enemies.length === 0) {
       waveManager.active = false;
       gameState = 'between_waves';
-      if (currentWave >= WAVE_DEFS.length) {
-        // Final wave complete → Victory!
+      if (currentWave >= WAVE_DEFS.length && !endlessMode) {
+        // Final wave of the campaign complete → Victory! (offers to continue Endless)
         setTimeout(triggerVictory, 1500);
       } else {
-        // Bonus gold for clearing wave
+        // Bonus gold for clearing wave (also fires for every Endless wave)
         const bonus = 15 + currentWave * 3;
         gold += bonus;
         updateHUD();
@@ -2970,12 +3184,14 @@ const Game = (function() {
     return Math.min(70, 10 + enemies.length * 4);
   }
 
+  function canAdvanceWave() { return endlessMode || currentWave < WAVE_DEFS.length; }
+
   function startNextWave() {
     const isFreshStart = gameState === 'between_waves';
     const isEarlyCall = gameState === 'playing' && waveManager.active
-      && waveManager.allEnemiesSpawned && currentWave < WAVE_DEFS.length;
+      && waveManager.allEnemiesSpawned && canAdvanceWave();
     if (!isFreshStart && !isEarlyCall) return;
-    if (currentWave >= WAVE_DEFS.length) return;
+    if (!canAdvanceWave()) return;
 
     if (isEarlyCall) {
       const bonus = earlyCallBonus();
@@ -2988,7 +3204,7 @@ const Game = (function() {
     gameState = 'playing';
     waveManager.startWave(currentWave, enemies, gameMap.worldPath);
     const lore = waveManager.getCurrentLore();
-    document.getElementById('hud-wave-num').textContent = `WAVE ${currentWave} / ${WAVE_DEFS.length}`;
+    document.getElementById('hud-wave-num').textContent = waveLabel();
     document.getElementById('hud-wave-lore').textContent = lore;
     const btn = document.getElementById('btn-next-wave');
     btn.disabled = true;
@@ -3030,7 +3246,7 @@ const Game = (function() {
             <div class="tower-card-name">${def.name}</div>
             <div style="font-size:9px; color:var(--text-dim); margin-top:2px;">Press ${TOWER_HOTKEYS[def.id] || ''}</div>
           </div>
-          <div class="tower-cost">🪙${def.cost}</div>
+          <div class="tower-cost">🪙${effectiveTowerCost(def)}</div>
         </div>
         <div class="tower-stats">
           <div>⚔ <span>${def.damage}</span></div>
@@ -3061,7 +3277,7 @@ const Game = (function() {
   function updateAffordability() {
     document.querySelectorAll('.tower-card').forEach(card => {
       const def = TOWER_DEFS.find(t => t.id === card.dataset.towerId);
-      card.classList.toggle('unaffordable', def && def.cost > gold);
+      card.classList.toggle('unaffordable', def && effectiveTowerCost(def) > gold);
     });
   }
 
@@ -3111,7 +3327,7 @@ const Game = (function() {
       return;
     }
 
-    if (c === GATE_TILE.c && r === GATE_TILE.r) {
+    if (gameMap.hasGate && c === GATE_TILE.c && r === GATE_TILE.r) {
       selectedTile = { c, r };
       selectedPlacedTower = null;
       document.querySelectorAll('.tower-card').forEach(card => card.classList.remove('selected'));
@@ -3132,7 +3348,8 @@ const Game = (function() {
 
     if (selectedTowerType && gameMap.isBuildable(c, r)) {
       const def = TOWER_DEFS.find(t => t.id === selectedTowerType);
-      if (!def || gold < def.cost) {
+      const cost = def ? effectiveTowerCost(def) : 0;
+      if (!def || gold < cost) {
         // Flash red — can't afford
         showWaveAnnouncement('Not enough Gold!', '#f44336');
         return;
@@ -3141,8 +3358,9 @@ const Game = (function() {
       const world = gameMap.tileToWorld(c, r);
       const tower = new Tower(def, world.x, world.y, c, r);
       tower.sellRate = getMetaEffects().sellRate;
+      if (dailyModifierId === 'glass') { tower.damage = Math.round(tower.damage * 1.2); tower.totalCost = cost; }
       gameMap.placeTower(tower, c, r);
-      gold -= def.cost;
+      gold -= cost;
       runTowerTypesUsed.add(def.id);
       audio.play('build_tower');
       updateHUD();
@@ -3206,10 +3424,14 @@ const Game = (function() {
   }
 
   // ---- UI UPDATES ----
+  function waveLabel() {
+    return endlessMode ? `WAVE ${currentWave} · ENDLESS` : `WAVE ${currentWave} / ${WAVE_DEFS.length}`;
+  }
+
   function updateHUD() {
     document.getElementById('hud-gold').textContent = gold;
     document.getElementById('hud-lives').textContent = lives;
-    document.getElementById('hud-wave-num').textContent = `WAVE ${currentWave} / ${WAVE_DEFS.length}`;
+    document.getElementById('hud-wave-num').textContent = waveLabel();
   }
 
   function updateSidebar() {
@@ -3240,7 +3462,7 @@ const Game = (function() {
         ${canUpgradeAtAll && nextUpg ? `<button class="btn-action" onclick="Game.upgradeSelected()" ${!canUpgrade ? 'disabled' : ''}>⬆ Upg<br>🪙${nextUpg.cost}</button>` : `<button class="btn-action" disabled>Max Lvl</button>`}
         <button class="btn-action sell" onclick="Game.sellSelected()">💰 Sell<br>🪙${t.getSellValue()}</button>
       `;
-    } else if (selectedTile && selectedTile.c === GATE_TILE.c && selectedTile.r === GATE_TILE.r) {
+    } else if (gameMap && gameMap.hasGate && selectedTile && selectedTile.c === GATE_TILE.c && selectedTile.r === GATE_TILE.r) {
       if (gameMap && gameMap.gateSealed) {
         infoDiv.innerHTML = `<strong style="color:var(--rune-cyan)">🚧 The Breach</strong><br><span style="color:var(--text-dim)">Sealed. New enemies now take the long way around.</span>`;
         actionsDiv.style.display = 'none';
@@ -3288,6 +3510,10 @@ const Game = (function() {
   // ---- GAME STATE ----
   function togglePause() {
     if (gameState === 'game_over' || gameState === 'victory') return;
+    if (dailyModifierId === 'no_pause') {
+      showWaveAnnouncement('No Mercy: pausing is disabled today', '#f44336');
+      return;
+    }
     isPaused = !isPaused;
     document.getElementById('overlay-pause').classList.toggle('active', isPaused);
   }
@@ -3338,6 +3564,7 @@ const Game = (function() {
       if (a.check(runStats, totals)) { unlocked.add(a.id); newlyUnlocked.push(a); }
     });
     saveAchievements(unlocked);
+    if (dailyMode) recordDailyBest(getDailySeed().dateStr, currentWave);
     return { essence, newlyUnlocked };
   }
 
@@ -3390,11 +3617,12 @@ const Game = (function() {
 
   // ---- PUBLIC API ----
   return {
-    init, startGame, newGame: (ngp) => { newGamePlus = !!ngp; newGame(ngp); }, returnToTitle,
+    init, newGame: (ngp) => { newGamePlus = !!ngp; newGame(ngp); }, returnToTitle,
     togglePause, setSpeed,
     startNextWave,
     upgradeSelected, sellSelected, cycleTargetMode, sealTheGate,
     openSanctum, buySanctumUpgrade,
+    openMapSelect, confirmMapChoice, confirmDailyVigil, continueEndless,
     // Expose for HTML onclick
   };
 })();

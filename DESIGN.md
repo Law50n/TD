@@ -153,8 +153,30 @@ the Sovereign of the Void alternates both) · light mazing — "The Breach"
 gate, sealable for gold to reroute future spawns through a longer, more
 exposed detour.
 
-**Phase 3 — next up, this is what makes it "addictive" long-term**
-Endless mode · 2nd/3rd map · daily challenge + leaderboard.
+**Phase 3 — ✅ shipped**
+Endless Mode — a "Continue into the Void" option on victory that procedurally
+generates waves past 15, with a rotating echo of the three named bosses every
+third wave · a second map, "The Long Road" (a long, exposed serpentine —
+deliberately no mazing gate, trading chokepoints for raw distance), picked on
+a new map-select screen before each run · Daily Vigil — a deterministic
+per-day map + modifier (Austerity/-25% gold, No Mercy/no pausing, Glass
+Cannon/+20% tower cost and damage) so everyone gets the same challenge on the
+same day, with a personal best tracked locally. No backend exists here, so
+this is a personal daily best, not a live cross-player leaderboard — worth
+being upfront about rather than implying one.
+
+Testing Phase 3 also surfaced a real pre-existing bug: `WaveManager`'s
+spawn queue was never actually shrinking (entries were flagged `spawned`
+in place but never removed), so `waveComplete` could never become true for
+any wave with enemies in it. That meant natural wave-clearing — and
+therefore `triggerVictory()` — was unreachable from the very first version
+of the prototype; only the Phase 1 early-call button (which only checks
+`allEnemiesSpawned`) ever let a run progress at all. Fixed by filtering
+spawned entries out of the queue each tick.
+
+Ideas for further content, not yet built: a third map, a live leaderboard
+(would need a backend), more Sanctum upgrades, more achievements, an
+in-run map-specific maze gate for "The Long Road" too.
 
 ---
 

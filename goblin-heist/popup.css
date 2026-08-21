@@ -1,0 +1,132 @@
+body {
+  width: 300px;
+  margin: 0;
+  padding: 14px;
+  background: #1a1c17;
+  color: #ede9cd;
+  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.gh-p-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.gh-p-icon {
+  width: 36px;
+  height: 36px;
+  image-rendering: pixelated;
+}
+
+.gh-p-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.gh-p-subtitle {
+  font-size: 11px;
+  color: #9a9686;
+}
+
+.gh-p-gold {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  background: #23261f;
+  border: 1px solid #34372c;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.gh-p-gold-amount {
+  font-size: 22px;
+  font-weight: 700;
+  color: #d8b452;
+}
+
+.gh-p-gold-label {
+  color: #9a9686;
+}
+
+.gh-p-section {
+  margin-bottom: 12px;
+}
+
+.gh-p-label {
+  display: block;
+  font-size: 11px;
+  color: #9a9686;
+  margin-bottom: 4px;
+}
+
+select {
+  width: 100%;
+  padding: 6px;
+  background: #23261f;
+  color: #ede9cd;
+  border: 1px solid #34372c;
+  border-radius: 6px;
+}
+
+.gh-p-active-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gh-p-btn {
+  border: none;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #3a4034;
+  color: #ede9cd;
+}
+
+.gh-p-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.gh-p-btn:not(:disabled):hover {
+  background: #474e3f;
+}
+
+.gh-p-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.gh-p-log li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid #262920;
+  font-size: 12px;
+}
+
+.gh-p-log-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gh-p-log-meta {
+  flex: none;
+  color: #9a9686;
+  font-size: 11px;
+}
+
+.gh-p-empty {
+  color: #9a9686;
+  font-size: 12px;
+}

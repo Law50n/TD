@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Goblin Heist — Real World Goblins",
+  "short_name": "Goblin Heist",
+  "version": "0.1.0",
+  "description": "A derp goblin raids a button off the site you're on and holds it for gold ransom. Pay him, chase him down, or wait him out.",
+  "icons": {
+    "16": "icons/goblin16.png",
+    "32": "icons/goblin32.png",
+    "48": "icons/goblin48.png",
+    "128": "icons/goblin128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/goblin16.png",
+      "32": "icons/goblin32.png",
+      "48": "icons/goblin48.png",
+      "128": "icons/goblin128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["storage", "alarms"],
+  "host_permissions": ["https://x.com/*", "https://twitter.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://x.com/*", "https://twitter.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

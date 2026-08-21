@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Goblin Heist</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="gh-p-header">
+      <img src="icons/goblin48.png" alt="" class="gh-p-icon" />
+      <div>
+        <div class="gh-p-title">Goblin Heist</div>
+        <div class="gh-p-subtitle">Real World Goblins</div>
+      </div>
+    </header>
+
+    <section class="gh-p-gold">
+      <span class="gh-p-gold-amount" id="gold">—</span>
+      <span class="gh-p-gold-label">gold</span>
+    </section>
+
+    <section class="gh-p-section">
+      <label class="gh-p-label" for="mischief">Mischief level</label>
+      <select id="mischief">
+        <option value="chill">Chill — rare, cheap ransoms</option>
+        <option value="normal">Normal</option>
+        <option value="chaotic">Chaotic — frequent, pricey ransoms</option>
+      </select>
+    </section>
+
+    <section class="gh-p-section">
+      <div class="gh-p-active-row">
+        <span id="active-count">0 things stolen right now</span>
+        <button id="free-all" class="gh-p-btn" disabled>Free them all — always free</button>
+      </div>
+    </section>
+
+    <section class="gh-p-section">
+      <div class="gh-p-label">Recent heists</div>
+      <ul id="log" class="gh-p-log"></ul>
+    </section>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

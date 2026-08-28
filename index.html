@@ -2021,25 +2021,30 @@ class GameMap {
       ctx.shadowBlur = 0;
       ctx.strokeStyle = 'rgba(15,8,25,0.5)';
       ctx.lineWidth = 2;
+      // Guard against tw/th being 0 (e.g. a draw sneaking in before the
+      // canvas is ever sized) — with tickSpacing <= 0 the loop below would
+      // never advance `d` and hang the tab, not just look wrong.
       const tickSpacing = Math.max(tw, th) * 0.9;
-      const tickHalf = (Math.max(tw, th) - 4) * 0.45;
-      let acc = 0;
-      for (let i = 1; i < this.worldPath.length; i++) {
-        const a = this.worldPath[i - 1], b = this.worldPath[i];
-        const dx = b.x - a.x, dy = b.y - a.y;
-        const segLen = Math.hypot(dx, dy);
-        if (segLen < 1) continue;
-        const nx = -dy / segLen, ny = dx / segLen;
-        let d = tickSpacing - (acc % tickSpacing);
-        while (d < segLen) {
-          const px = a.x + dx * (d / segLen), py = a.y + dy * (d / segLen);
-          ctx.beginPath();
-          ctx.moveTo(px + nx * tickHalf, py + ny * tickHalf);
-          ctx.lineTo(px - nx * tickHalf, py - ny * tickHalf);
-          ctx.stroke();
-          d += tickSpacing;
+      if (tickSpacing > 0) {
+        const tickHalf = (Math.max(tw, th) - 4) * 0.45;
+        let acc = 0;
+        for (let i = 1; i < this.worldPath.length; i++) {
+          const a = this.worldPath[i - 1], b = this.worldPath[i];
+          const dx = b.x - a.x, dy = b.y - a.y;
+          const segLen = Math.hypot(dx, dy);
+          if (segLen < 1) continue;
+          const nx = -dy / segLen, ny = dx / segLen;
+          let d = tickSpacing - (acc % tickSpacing);
+          while (d < segLen) {
+            const px = a.x + dx * (d / segLen), py = a.y + dy * (d / segLen);
+            ctx.beginPath();
+            ctx.moveTo(px + nx * tickHalf, py + ny * tickHalf);
+            ctx.lineTo(px - nx * tickHalf, py - ny * tickHalf);
+            ctx.stroke();
+            d += tickSpacing;
+          }
+          acc += segLen;
         }
-        acc += segLen;
       }
 
       // Path edge lines

@@ -1049,6 +1049,7 @@
         <span id="speed-label" style="font-size:10px; color:var(--text-dim);">Speed:</span>
         <button class="speed-btn active" id="speed-1" onclick="Game.setSpeed(1)">1x</button>
         <button class="speed-btn" id="speed-2" onclick="Game.setSpeed(2)">2x</button>
+        <button class="speed-btn" id="speed-5" onclick="Game.setSpeed(5)">5x</button>
         <button class="btn-hud next-wave" id="btn-next-wave" onclick="Game.startNextWave()">▶ Next Wave</button>
         <button class="btn-hud" onclick="Game.togglePause()">⏸ Pause</button>
       </div>
@@ -2985,9 +2986,12 @@ const Game = (function() {
   let selectedTile = null;
   let selectedTowerType = null;
   let selectedPlacedTower = null;
+  let hoverTile = null; // { c, r } — tile under the cursor while a tower is picked up, for the ghost preview
+  let ghostTower = null; // throwaway Tower instance reused to draw the translucent cursor preview
   let isPaused = false;
   let gameState = 'idle'; // idle, playing, between_waves, game_over, victory
   let lastTime = 0;
+  let lastAffordabilityGold = null; // detects gold changes so upgrade/build buttons re-enable live
   let currentWave = 0;
   let gameSpeed = 1;
   let totalKills = 0;
@@ -3081,6 +3085,8 @@ const Game = (function() {
     window.addEventListener('resize', resizeHandler);
     canvas.addEventListener('click', onCanvasClick);
     canvas.addEventListener('mousemove', onCanvasHover);
+    canvas.addEventListener('mouseleave', () => { hoverTile = null; });
+    canvas.addEventListener('contextmenu', onCanvasRightClick);
     canvas.addEventListener('touchstart', onTouch, { passive: false });
     document.addEventListener('keydown', onKeyDown);
     buildTowerCards();
@@ -3331,6 +3337,16 @@ const Game = (function() {
       updateGame(dt);
     }
     tweenHUD(rawDt); // animates toward gold/lives every frame, paused or not
+    // Gold changes constantly from kills/waves outside of any user action — re-check
+    // affordability-gated UI (tower cards, upgrade/sell/seal buttons) whenever it moves,
+    // instead of only at the moment something was selected.
+    if (gold !== lastAffordabilityGold) {
+      lastAffordabilityGold = gold;
+      updateAffordability();
+      if (selectedPlacedTower || (selectedTile && gameMap && gameMap.hasGate && selectedTile.c === GATE_TILE.c && selectedTile.r === GATE_TILE.r)) {
+        updateSidebarInfo();
+      }
+    }
     drawGame(rawDt); // always draw (for animations)
     animFrameId = requestAnimationFrame(gameLoop);
   }
@@ -3482,14 +3498,20 @@ const Game = (function() {
     // Particles
     particles.draw(ctx);
 
-    // Range preview when placing
-    if (selectedTile && selectedTowerType && gameMap.isBuildable(selectedTile.c, selectedTile.r)) {
+    // Ghost tower preview — follows the cursor while a tower is picked up
+    if (selectedTowerType && hoverTile) {
+      const { c, r } = hoverTile;
       const def = TOWER_DEFS.find(t => t.id === selectedTowerType);
       if (def) {
-        const world = gameMap.tileToWorld(selectedTile.c, selectedTile.r);
+        const buildable = gameMap.isBuildable(c, r);
+        const affordable = gold >= effectiveTowerCost(def);
+        const valid = buildable && affordable;
+        const world = gameMap.tileToWorld(c, r);
+
+        // Range circle: cyan when placement here would be valid, red otherwise
         ctx.save();
-        ctx.strokeStyle = `rgba(79,195,247,0.3)`;
-        ctx.fillStyle = `rgba(79,195,247,0.04)`;
+        ctx.strokeStyle = valid ? 'rgba(79,195,247,0.35)' : 'rgba(244,67,54,0.3)';
+        ctx.fillStyle = valid ? 'rgba(79,195,247,0.05)' : 'rgba(244,67,54,0.05)';
         ctx.setLineDash([5, 5]);
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -3498,6 +3520,21 @@ const Game = (function() {
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.restore();
+
+        // Translucent tower body, only where it could actually go
+        if (buildable) {
+          if (!ghostTower || ghostTower.def !== def) {
+            ghostTower = new Tower(def, world.x, world.y, c, r);
+            ghostTower.spawnAge = 999; // skip the materialize pop-in animation
+          } else {
+            ghostTower.x = world.x;
+            ghostTower.y = world.y;
+          }
+          ctx.save();
+          ctx.globalAlpha = valid ? 0.55 : 0.35;
+          ghostTower.draw(ctx, gameMap.tileW, gameMap.tileH, performance.now() / 1000);
+          ctx.restore();
+        }
       }
     }
 
@@ -3633,6 +3670,7 @@ const Game = (function() {
     const my = e.clientY - rect.top;
     const { c, r } = gameMap.worldToTile(mx, my);
     if (c >= 0 && c < GRID_COLS && r >= 0 && r < GRID_ROWS) {
+      hoverTile = { c, r };
       // Update cursor
       if (selectedTowerType && gameMap.isBuildable(c, r)) {
         canvas.style.cursor = 'cell';
@@ -3641,6 +3679,18 @@ const Game = (function() {
       } else {
         canvas.style.cursor = 'crosshair';
       }
+    } else {
+      hoverTile = null;
+    }
+  }
+
+  function onCanvasRightClick(e) {
+    e.preventDefault();
+    if (selectedTowerType) {
+      selectedTowerType = null;
+      document.querySelectorAll('.tower-card').forEach(c => c.classList.remove('selected'));
+      updateSidebarInfo();
+      updateAffordability();
     }
   }
 
@@ -3699,6 +3749,13 @@ const Game = (function() {
       selectedPlacedTower = tower;
       updateSidebarInfo();
     } else {
+      // Clicked a non-buildable tile (e.g. the path) — if a tower was picked up,
+      // treat this as "click to cancel" rather than just selecting the tile.
+      if (selectedTowerType) {
+        selectedTowerType = null;
+        document.querySelectorAll('.tower-card').forEach(card => card.classList.remove('selected'));
+        updateAffordability();
+      }
       selectedTile = { c, r };
       selectedPlacedTower = null;
       updateSidebarInfo();
@@ -3890,6 +3947,7 @@ const Game = (function() {
   function setSpeedButton(s) {
     document.getElementById('speed-1').classList.toggle('active', s === 1);
     document.getElementById('speed-2').classList.toggle('active', s === 2);
+    document.getElementById('speed-5').classList.toggle('active', s === 5);
   }
 
   function upgradeSelected() {

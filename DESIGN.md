@@ -216,6 +216,29 @@ Verified with headless Chromium at a real phone viewport (375×667,
 touch-emulated) confirming tower placement now works, plus a full
 regression across the New Game+, pause, and Daily Vigil fixes.
 
+**Playtest feedback pass — ✅ done**
+Three fixes from actual play:
+
+- **5x speed.** A third speed option next to 1x/2x for players who want to
+  blitz through easy waves.
+- **Tower placement now shows a translucent preview that follows the
+  cursor** instead of only a static range ring after the fact — the ghost
+  tower renders at the hovered tile with a cyan "valid" or red "invalid"
+  range circle depending on whether it's buildable and affordable there.
+  Right-click, or clicking a non-buildable tile (the path), now cancels
+  the pending placement; clicking a different tower card swaps to it as
+  before.
+- **The upgrade/sell/seal-the-gate buttons could get stuck showing
+  "not enough gold"** even after the player earned enough from kills,
+  because they only re-rendered at the moment something was selected.
+  The game loop now re-checks affordability whenever gold actually
+  changes and live-updates whichever action panel is open, so a button
+  unlocks the instant you can afford it — no need to deselect and
+  reselect. Verified headlessly: selected a tower priced out of an
+  upgrade, ran a wave without touching the sidebar again, and watched
+  the button flip from disabled to enabled the moment gold crossed the
+  threshold.
+
 ---
 
 `index.html` in this repo is the current build. Nothing above required a

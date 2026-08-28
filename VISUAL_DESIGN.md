@@ -38,23 +38,32 @@ screenshots before/after.
 
 ## Roadmap to "professional and complete"
 
-### Phase B — Motion & feedback polish (next, highest ROI, no new assets)
+### Phase B — Motion & feedback polish — ✅ shipped
 
-- **Death animations**: enemies currently just vanish + a particle burst.
-  Add a brief collapse (scale-down + fade over ~150ms) before removal;
-  give boss deaths a multi-stage explosion instead of the same burst as a
-  crawler.
-- **Tower placement/sell**: instant pop-in/out today. Add a "materialize"
-  scale-up with a brief rune-circle flash on placement, and a crumble-fade
-  on sell — the Sanctum and gate-seal actions could use a similar beat.
-- **Screen transitions**: screens currently hard-swap via
-  `display:none`/`flex`. A 150–200ms crossfade (CSS transition on opacity,
-  toggled a frame after the display change) between title/game/overlays
-  would remove the "slide-projector" feel.
-- **HUD counters**: gold/lives currently jump instantly on change. A brief
-  count-up/down tween (even a simple `requestAnimationFrame` lerp) reads as
-  far more polished than a hard `textContent` swap, and a one-frame flash
-  on the changed stat gives free feedback.
+- **Death animations**: enemies now collapse (shrink + fade over ~0.3s,
+  0.6s for bosses) instead of vanishing on the spot — they're kept in the
+  `enemies` array during the animation but already excluded from
+  targeting/collision by the existing `isDead` checks, so nothing re-hits
+  a dying enemy. Boss deaths get three staged bursts (explode → glow-color
+  burst → white flash-ring) plus a bigger screenshake instead of the same
+  14-particle pop as a crawler.
+- **Tower placement/sell**: placement now does a quick overshoot scale-in
+  (`ease-out-back`) plus a rune-ring + spark burst; selling scatters the
+  tower's own color as it's removed instead of an instant pop.
+- **Screen transitions**: `.screen.active` and `.overlay-panel` both get a
+  short fade/scale-in `@keyframes` animation (respects
+  `prefers-reduced-motion`) — no JS changes needed since `showScreen()`
+  already just toggles the `active` class.
+- **HUD counters**: gold/lives are now owned by a per-frame `tweenHUD()`
+  that counts the displayed number toward the real one and flashes
+  green/red on the direction of change, instead of `updateHUD()` writing
+  `textContent` instantly.
+
+Verified with headless Chromium: materialize/sell/death frames captured
+mid-animation, and — given this codebase's history of a subtle
+wave-completion bug — specifically re-confirmed that victory, achievement
+unlocks, and the Endless Mode transition still fire correctly with the
+death-animation delay in the enemy cleanup path.
 
 ### Phase C — UI chrome refinement
 

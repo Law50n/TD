@@ -42,7 +42,14 @@
 
   /* ===== SCREEN MANAGEMENT ===== */
   .screen { display: none; width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
-  .screen.active { display: flex; }
+  .screen.active { display: flex; animation: screenFadeIn 0.4s ease both; }
+  @keyframes screenFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .screen.active { animation: none; }
+  }
 
   /* ===== ANIMATED BACKGROUND ===== */
   .arcane-bg {
@@ -409,7 +416,20 @@
     font-size: 13px;
   }
   .hud-stat .icon { font-size: 16px; }
-  .hud-stat .value { color: var(--spire-gold-light); font-size: 15px; }
+  .hud-stat .value { color: var(--spire-gold-light); font-size: 15px; display: inline-block; }
+  .hud-stat .value.flash-up { animation: statFlashUp 0.5s ease; }
+  .hud-stat .value.flash-down { animation: statFlashDown 0.5s ease; }
+  @keyframes statFlashUp {
+    0% { color: #7be495; transform: scale(1.25); text-shadow: 0 0 8px rgba(123,228,149,0.8); }
+    100% { color: var(--spire-gold-light); transform: scale(1); text-shadow: none; }
+  }
+  @keyframes statFlashDown {
+    0% { color: #e57373; transform: scale(1.25); text-shadow: 0 0 8px rgba(229,115,115,0.8); }
+    100% { color: var(--spire-gold-light); transform: scale(1); text-shadow: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hud-stat .value.flash-up, .hud-stat .value.flash-down { animation: none; }
+  }
   .hud-stat .label { color: var(--text-dim); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
 
   .hud-wave-info {
@@ -633,7 +653,8 @@
     flex-direction: column;
     backdrop-filter: blur(4px);
   }
-  .overlay-screen.active { display: flex; }
+  .overlay-screen.active { display: flex; animation: overlayBgIn 0.25s ease both; }
+  @keyframes overlayBgIn { from { opacity: 0; } to { opacity: 1; } }
 
   .overlay-panel {
     background: rgba(10,8,18,0.98);
@@ -644,6 +665,14 @@
     max-width: 520px;
     width: 90%;
     position: relative;
+    animation: overlayPanelIn 0.35s cubic-bezier(0.2, 0.8, 0.3, 1.1) both;
+  }
+  @keyframes overlayPanelIn {
+    from { opacity: 0; transform: translateY(14px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .overlay-screen.active, .overlay-panel { animation: none; }
   }
   .overlay-title {
     font-family: 'Cinzel Decorative', serif;
@@ -2221,6 +2250,7 @@ class Tower {
     this.recoilVel = 0;
     this.stunTimer = 0;   // set by boss stomp abilities; can't acquire/fire while > 0
     this.sellRate = 0.6;  // overridden at placement time by Sanctum's Efficient Teardown talent
+    this.spawnAge = 0;    // seconds since placement — drives the materialize animation in draw()
     // Targeting: 'first' (furthest along path), 'last' (least progress),
     // 'strongest' (highest current HP), 'closest' (nearest to this tower)
     this.targetMode = 'first';
@@ -2263,6 +2293,7 @@ class Tower {
     return best;
   }
   update(dt, enemies, projectiles, particles, audio) {
+    this.spawnAge += dt;
     this.cooldown -= dt;
     this.recoilOffset = Math.max(0, this.recoilOffset + this.recoilVel * dt);
     this.recoilVel -= this.recoilOffset * 40;
@@ -2301,6 +2332,18 @@ class Tower {
 
     ctx.save();
     if (this.stunTimer > 0) ctx.globalAlpha = 0.4;
+
+    // Materialize animation: a quick overshoot scale-in on placement
+    const SPAWN_DURATION = 0.4;
+    if (this.spawnAge < SPAWN_DURATION) {
+      const t = Math.min(1, this.spawnAge / SPAWN_DURATION);
+      const c1 = 1.70158, c3 = c1 + 1;
+      const scale = Math.max(0, 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2));
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+      ctx.translate(-x, -y);
+      ctx.globalAlpha *= Math.min(1, t * 2);
+    }
 
     // Ground shadow — gives the tower actual weight on the tile
     drawGroundShadow(ctx, x, y + baseSize * 0.5, baseSize * 0.95, baseSize * 0.38);
@@ -2520,6 +2563,8 @@ class Enemy {
     this.slowTimer = 0;
     this.slowFactor = 0;
     this.facingAngle = 0;
+    this.deathAnimTimer = 0;
+    this.deathAnimDuration = 0;
     // Boss state: bossAbility is an array of ability configs the boss
     // cycles through (telegraphed, then executed) on its own timer.
     this.isBoss = !!def.boss;
@@ -2555,11 +2600,21 @@ class Enemy {
       reducedDmg -= absorbed;
     }
     this.hp = Math.max(0, this.hp - reducedDmg);
-    if (this.hp <= 0) this.isDead = true;
+    if (this.hp <= 0 && !this.isDead) {
+      this.isDead = true;
+      // Kept in the enemies array a little longer so draw() can play a
+      // collapse animation instead of the body vanishing on the spot.
+      this.deathAnimTimer = this.isBoss ? 0.6 : 0.3;
+      this.deathAnimDuration = this.deathAnimTimer;
+    }
     return dealt;
   }
   update(dt, ctx) {
-    if (this.isDead || this.escaped) return;
+    if (this.isDead) {
+      this.deathAnimTimer = Math.max(0, this.deathAnimTimer - dt);
+      return;
+    }
+    if (this.escaped) return;
     this.animTime += dt * 3;
     if (this.slowTimer > 0) this.slowTimer -= dt;
     if (this.isBoss) this._updateBossAbility(dt, ctx);
@@ -2636,7 +2691,29 @@ class Enemy {
     }
   }
   draw(ctx, gameTime) {
-    if (this.isDead) return;
+    if (this.isDead) {
+      // Collapse animation: shrink + fade instead of vanishing on the spot.
+      // Duration/scale already reflect boss vs. regular in takeDamage().
+      if (this.deathAnimTimer <= 0) return;
+      const t = this.deathAnimTimer / (this.deathAnimDuration || 1); // 1 -> 0
+      ctx.save();
+      ctx.globalAlpha = t;
+      ctx.translate(this.x, this.y);
+      ctx.scale(t, t);
+      ctx.shadowColor = this.def.glowColor;
+      ctx.shadowBlur = 6;
+      ctx.fillStyle = this.def.color;
+      ctx.beginPath();
+      ctx.arc(0, 0, this.def.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.font = `${this.def.size * 1.1}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.globalAlpha = t * 0.9;
+      ctx.fillText(this.def.emoji, 0, 0);
+      ctx.restore();
+      return;
+    }
     const bounce = Math.sin(this.animTime) * this.def.bounceAmp;
     const size = this.def.size;
     const x = this.x, y = this.y + bounce;
@@ -2892,6 +2969,7 @@ const Game = (function() {
   let dailyMode = false;
   let endlessMode = false;
   let pendingDaily = false; // set by openMapSelect(true), read by the map-select screen
+  let displayedGold = 200, displayedLives = 20; // HUD tween targets — see tweenHUD()
 
   // ---- META-PROGRESSION (persisted across runs) ----
   const META_KEYS = { essence: 'eternalspire_essence', purchases: 'eternalspire_purchases', achievements: 'eternalspire_achievements', totals: 'eternalspire_totals' };
@@ -3076,6 +3154,9 @@ const Game = (function() {
     gold = (newGamePlus ? 150 : 200) + meta.startGold;
     lives = (newGamePlus ? 15 : 20) + meta.startLives;
     if (dailyModifierId === 'austerity') gold = Math.floor(gold * 0.75);
+    // Snap the HUD tween instead of animating in from the previous run's numbers
+    displayedGold = gold;
+    displayedLives = lives;
     score = 0;
     totalKills = 0;
     currentWave = 0;
@@ -3204,6 +3285,7 @@ const Game = (function() {
     if (!isPaused) {
       updateGame(dt);
     }
+    tweenHUD(rawDt); // animates toward gold/lives every frame, paused or not
     drawGame(rawDt); // always draw (for animations)
     animFrameId = requestAnimationFrame(gameLoop);
   }
@@ -3256,7 +3338,17 @@ const Game = (function() {
         totalKills++;
         if (e.def.id === 'archon' || e.def.id === 'archon_ravager') runArchonKills++;
         if (e.def.id === 'sovereign_void') runSovereignSlain = true;
-        particles.explode(e.x, e.y, e.def.color, 14);
+        if (e.isBoss) {
+          // A boss falling gets a real moment: three staged bursts instead
+          // of the same 14-particle pop as a crawler.
+          particles.explode(e.x, e.y, e.def.color, 30);
+          particles.ring(e.x, e.y, 50, e.def.glowColor);
+          particles.triggerShake(10, 0.35);
+          setTimeout(() => particles.explode(e.x, e.y, e.def.glowColor, 20), 150);
+          setTimeout(() => { particles.explode(e.x, e.y, '#fff', 16); particles.ring(e.x, e.y, 70, '#fff'); }, 300);
+        } else {
+          particles.explode(e.x, e.y, e.def.color, 14);
+        }
         audio.play('enemy_death');
         updateHUD();
         // Splitters divide into weaker children on death instead of just dying
@@ -3278,9 +3370,10 @@ const Game = (function() {
       }
     });
 
-    // Clean up dead/escaped enemies
-    enemies = enemies.filter(e => !e.isDead && !e.escaped || (!e._countedDeath && !e._countedEscape));
-    enemies = enemies.filter(e => !(e.isDead || e.escaped));
+    // Clean up: escaped enemies are removed immediately, dead ones stay
+    // around (frozen, invisible to targeting via the isDead checks
+    // elsewhere) until their collapse animation finishes playing.
+    enemies = enemies.filter(e => !e.escaped && !(e.isDead && e.deathAnimTimer <= 0));
 
     // Update towers
     gameMap.towers.forEach(tower => {
@@ -3551,6 +3644,9 @@ const Game = (function() {
       gameMap.placeTower(tower, c, r);
       gold -= cost;
       runTowerTypesUsed.add(def.id);
+      // Summoning flourish: a quick expanding rune-ring + a small upward burst
+      particles.ring(world.x, world.y, 28, def.glowColor);
+      particles.explode(world.x, world.y, def.color, 10);
       audio.play('build_tower');
       updateHUD();
       updateAffordability();
@@ -3583,6 +3679,8 @@ const Game = (function() {
     if (!tower) return;
     const sellVal = tower.getSellValue();
     gold += sellVal;
+    // Crumble flourish: a scatter of the tower's own color falling away
+    particles.explode(tower.x, tower.y, tower.def.color, 12);
     gameMap.removeTower(c, r);
     audio.play('gold_earn');
     selectedTile = null;
@@ -3617,10 +3715,39 @@ const Game = (function() {
     return endlessMode ? `WAVE ${currentWave} · ENDLESS` : `WAVE ${currentWave} / ${WAVE_DEFS.length}`;
   }
 
+  // Gold/Lives text is owned entirely by tweenHUD() below, which runs every
+  // frame and animates toward these values — updateHUD() just marks the
+  // wave label (instant, nothing to animate there) and lets the target
+  // values (`gold`, `lives`) do the rest.
   function updateHUD() {
-    document.getElementById('hud-gold').textContent = gold;
-    document.getElementById('hud-lives').textContent = lives;
     document.getElementById('hud-wave-num').textContent = waveLabel();
+  }
+
+  // Smoothly counts the displayed Gold/Lives toward their real values and
+  // flashes the stat on change, instead of the number jumping instantly.
+  function flashStat(el, dir) {
+    el.classList.remove('flash-up', 'flash-down');
+    void el.offsetWidth; // restart the animation even if it's still playing
+    el.classList.add(dir > 0 ? 'flash-up' : 'flash-down');
+  }
+  function tweenHUD(dt) {
+    const goldEl = document.getElementById('hud-gold');
+    const livesEl = document.getElementById('hud-lives');
+    if (!goldEl || !livesEl) return;
+    if (displayedGold !== gold) {
+      const diff = gold - displayedGold;
+      const step = Math.sign(diff) * Math.max(1, Math.round(Math.abs(diff) * Math.min(1, dt * 10)));
+      displayedGold = Math.abs(diff) <= Math.abs(step) ? gold : displayedGold + step;
+      goldEl.textContent = displayedGold;
+      flashStat(goldEl, diff);
+    }
+    if (displayedLives !== lives) {
+      const diff = lives - displayedLives;
+      const step = Math.sign(diff) * Math.max(1, Math.round(Math.abs(diff) * Math.min(1, dt * 10)));
+      displayedLives = Math.abs(diff) <= Math.abs(step) ? lives : displayedLives + step;
+      livesEl.textContent = displayedLives;
+      flashStat(livesEl, diff);
+    }
   }
 
   function updateSidebar() {

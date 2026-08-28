@@ -763,7 +763,28 @@
     .howto-grid { grid-template-columns: 1fr; }
   }
   @media (max-width: 480px) {
-    .game-sidebar { display: none; }
+    /* The sidebar used to just disappear here, which was the *only* way
+       to select a tower type (keyboard 1/2/3/4 don't exist on touch) —
+       that made the game unplayable on phones. Re-dock it as a
+       horizontally-scrolling bottom bar instead of hiding it. */
+    #screen-game { flex-direction: column; }
+    .game-sidebar {
+      width: 100%;
+      max-height: 46vh;
+      flex-direction: column;
+      border-left: none;
+      border-top: 1px solid rgba(201,168,76,0.25);
+    }
+    .sidebar-title { padding: 8px 14px 6px; }
+    .tower-cards {
+      flex-direction: row;
+      flex: 0 0 auto;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 8px;
+    }
+    .tower-card { min-width: 108px; flex-shrink: 0; }
+    .selected-info { flex-shrink: 0; min-height: 0; }
   }
 
   /* Scrollbar styling */
@@ -1080,7 +1101,7 @@
     <div class="overlay-stat" id="win-stats"></div>
     <div class="overlay-buttons">
       <button class="btn-primary" onclick="Game.continueEndless()">🌀 Continue into the Void</button>
-      <button class="btn-secondary" onclick="Game.newGame()">⚡ New Game+ (Harder)</button>
+      <button class="btn-secondary" onclick="Game.newGame(true)">⚡ New Game+ (Harder)</button>
       <button class="btn-secondary" onclick="Game.returnToTitle()">🏠 Return to Title</button>
     </div>
   </div>
@@ -2451,6 +2472,7 @@ class Projectile {
     this.slowDuration = tower.def.slowDuration || 0;
     this.done = false;
     this.trailTimer = 0;
+    this.age = 0;
     // Calculate initial direction
     const dx = this.target.x - this.x;
     const dy = this.target.y - this.y;
@@ -2473,9 +2495,15 @@ class Projectile {
         return;
       }
     } else if (this.target && (this.target.isDead || this.target.escaped)) {
-      // Target gone — find new target or just fly forward
-      const newTarget = enemies.find(e => !e.isDead && !e.escaped);
-      if (newTarget) this.target = newTarget;
+      // Target gone — retarget to the nearest alive enemy (not just the
+      // first one in spawn order, which could be anywhere on the path)
+      let nearest = null, nearestDist = Infinity;
+      enemies.forEach(e => {
+        if (e.isDead || e.escaped) return;
+        const d = (e.x - this.x) ** 2 + (e.y - this.y) ** 2;
+        if (d < nearestDist) { nearest = e; nearestDist = d; }
+      });
+      if (nearest) this.target = nearest;
     }
     this.x += this.vx * dt;
     this.y += this.vy * dt;
@@ -2485,8 +2513,12 @@ class Projectile {
       particles.trail(this.x, this.y, this.color);
       this.trailTimer = 0;
     }
-    // Cleanup if off screen
-    if (this.x < -50 || this.x > 2000 || this.y < -50 || this.y > 2000) this.done = true;
+    // Cleanup once it's clearly not going to hit anything — a lifetime
+    // cap rather than a fixed pixel bound, so it doesn't depend on canvas
+    // size (a hardcoded bound could delete a projectile mid-flight toward
+    // a real target on very wide displays).
+    this.age += dt;
+    if (this.age > 4) this.done = true;
   }
   hit(enemy, enemies, particles, audio) {
     this.done = true;
@@ -2902,7 +2934,6 @@ class WaveManager {
     const waveMultiplier = 1 + (waveNum - 1) * 0.15; // 15% harder each wave, unchanged into Endless
     waveDef.enemies.forEach(group => {
       for (let i = 0; i < group.count; i++) {
-        const enemyDef = this.enemyDefs.find(e => e.id === group.type || e.id === 'crawler');
         const actualDef = this.enemyDefs.find(e => e.id === group.type) || this.enemyDefs[0];
         this.spawnQueue.push({
           def: actualDef,
@@ -2955,7 +2986,6 @@ const Game = (function() {
   let currentWave = 0;
   let gameSpeed = 1;
   let totalKills = 0;
-  let newGamePlus = false;
   let animFrameId = null;
   // Per-run tracking for achievements (reset each newGame())
   let runStartLives = 20;
@@ -2983,16 +3013,18 @@ const Game = (function() {
   function getTotals() { try { return JSON.parse(localStorage.getItem(META_KEYS.totals) || '{}'); } catch (e) { return {}; } }
   function saveTotals(t) { localStorage.setItem(META_KEYS.totals, JSON.stringify(t)); }
 
-  // Sums every purchased upgrade's effect into one object newGame() can apply.
+  // Sums every purchased upgrade's effect into one object newGame() can
+  // apply. Tower unlocks aren't summed here — see isTowerUnlocked() below,
+  // which checks a tower's own `requiresUpgrade` id directly against
+  // purchases instead.
   function getMetaEffects() {
     const purchases = getPurchases();
-    const effects = { startGold: 0, startLives: 0, sellRate: 0.6, unlockedTowers: new Set() };
+    const effects = { startGold: 0, startLives: 0, sellRate: 0.6 };
     META_UPGRADES.forEach(u => {
       if (!purchases.has(u.id)) return;
       if (u.effect.startGold) effects.startGold += u.effect.startGold;
       if (u.effect.startLives) effects.startLives += u.effect.startLives;
       if (u.effect.sellRate) effects.sellRate = Math.max(effects.sellRate, u.effect.sellRate);
-      if (u.effect.unlockTower) effects.unlockedTowers.add(u.effect.unlockTower);
     });
     return effects;
   }
@@ -3151,12 +3183,20 @@ const Game = (function() {
     // which left the canvas at a 0x0 draw buffer until a window resize.
     resizeHandler();
     const meta = getMetaEffects();
-    gold = (newGamePlus ? 150 : 200) + meta.startGold;
-    lives = (newGamePlus ? 15 : 20) + meta.startLives;
+    gold = (isNewGamePlus ? 150 : 200) + meta.startGold;
+    lives = (isNewGamePlus ? 15 : 20) + meta.startLives;
     if (dailyModifierId === 'austerity') gold = Math.floor(gold * 0.75);
-    // Snap the HUD tween instead of animating in from the previous run's numbers
+    // Snap the HUD tween instead of animating in from the previous run's
+    // numbers. tweenHUD() only writes the DOM when displayed !== target, so
+    // it must be written here too — otherwise the very first newGame() of
+    // a fresh page load never gets past the static "200" placeholder in
+    // the HTML whenever the real starting gold differs from 200 (New
+    // Game+, a daily Austerity run, Sanctum gold bonuses, ...).
     displayedGold = gold;
     displayedLives = lives;
+    const goldEl0 = document.getElementById('hud-gold'), livesEl0 = document.getElementById('hud-lives');
+    if (goldEl0) goldEl0.textContent = displayedGold;
+    if (livesEl0) livesEl0.textContent = displayedLives;
     score = 0;
     totalKills = 0;
     currentWave = 0;
@@ -3825,7 +3865,10 @@ const Game = (function() {
 
   // ---- GAME STATE ----
   function togglePause() {
-    if (gameState === 'game_over' || gameState === 'victory') return;
+    // Only meaningful mid-run — guards against 'p' opening the Pause
+    // overlay over the title/lore/how-to/Sanctum screens before any game
+    // has started, and after it's already over.
+    if (gameState !== 'playing' && gameState !== 'between_waves') return;
     if (dailyModifierId === 'no_pause') {
       showWaveAnnouncement('No Mercy: pausing is disabled today', '#f44336');
       return;
@@ -3933,7 +3976,7 @@ const Game = (function() {
 
   // ---- PUBLIC API ----
   return {
-    init, newGame: (ngp) => { newGamePlus = !!ngp; newGame(ngp); }, returnToTitle,
+    init, newGame: (ngp, opts) => newGame(!!ngp, opts), returnToTitle,
     togglePause, setSpeed,
     startNextWave,
     upgradeSelected, sellSelected, cycleTargetMode, sealTheGate,

@@ -178,6 +178,44 @@ Ideas for further content, not yet built: a third map, a live leaderboard
 (would need a backend), more Sanctum upgrades, more achievements, an
 in-run map-specific maze gate for "The Long Road" too.
 
+**Quality pass — ✅ done**
+A full review across everything built so far, checking for bugs the
+individual phases missed. Found and fixed:
+
+- **Mobile was unplayable.** `.game-sidebar { display: none; }` under
+  480px removed the *only* way to select a tower type — no keyboard
+  shortcuts exist on touch. Re-docked it as a horizontally-scrolling
+  bottom bar instead of hiding it.
+- **"New Game+ (Harder)" never actually applied harder settings.** The
+  button's `onclick` called `Game.newGame()` with no argument, and the
+  internal function read a separate outer `newGamePlus` variable instead
+  of its own `isNewGamePlus` parameter — so it silently behaved exactly
+  like a plain restart. Removed the redundant variable and wired the
+  parameter straight through.
+- **Pressing 'P' on the title/lore/how-to screens opened the Pause
+  overlay** over a game that didn't exist yet, since `togglePause()` only
+  excluded `game_over`/`victory`, not `idle`. Now only fires during
+  `playing`/`between_waves`.
+- **A HUD display bug in Phase B's own count-tween.** `newGame()`
+  "snapped" `displayedGold`/`displayedLives` to the target so a fresh run
+  wouldn't visibly tween in from the previous run's numbers — but
+  `tweenHUD()` only writes to the DOM when displayed ≠ target, so
+  snapping them equal meant the actual on-screen text never updated,
+  silently stuck on the static HTML's placeholder "200" whenever real
+  starting gold differed from 200 (New Game+, an Austerity daily run,
+  Sanctum gold bonuses). Invisible in most testing because normal runs
+  start at exactly 200. Fixed by writing the DOM directly at snap time.
+- Two minor correctness/cleanup items: projectiles used a hardcoded
+  2000px off-screen cleanup bound (could delete one mid-flight on very
+  wide canvases) — replaced with a max-lifetime check that doesn't depend
+  on display size, and retargeting now picks the *nearest* alive enemy
+  instead of the first one in spawn order. Plus a leftover dead variable
+  and an always-empty double-filter from early iterations, removed.
+
+Verified with headless Chromium at a real phone viewport (375×667,
+touch-emulated) confirming tower placement now works, plus a full
+regression across the New Game+, pause, and Daily Vigil fixes.
+
 ---
 
 `index.html` in this repo is the current build. Nothing above required a

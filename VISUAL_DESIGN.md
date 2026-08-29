@@ -65,6 +65,44 @@ wave-completion bug — specifically re-confirmed that victory, achievement
 unlocks, and the Endless Mode transition still fire correctly with the
 death-animation delay in the enemy cleanup path.
 
+### Phase D — Character art: Goblins & Derps (style proof, in progress)
+
+Direction from actual reference art (a goblin — green skin, pointy ears, a
+cracked eggshell "cap," big round eyes, fangs — and a "Derp" — pale rounded
+head, colored beanie, ski goggles). No image-generation tool is available,
+so this is procedural Canvas 2D art (flat fills, bold black outlines)
+matching that style rather than pixel-identical reproductions; built so a
+real sprite can drop in later per-unit via `ctx.drawImage()` if art files
+ever exist for a given type.
+
+Shipped as a style proof on one tower and one enemy before expanding to the
+rest of the roster:
+
+- **Archer → Derp.** `drawDerpHead()` replaces the plain lit-sphere body:
+  pale head, slight derpy tilt, red/green beanie band, purple ski goggles,
+  a small worried mouth. The aim-direction barrel now originates from the
+  edge of the head instead of dead-center so it reads as a held weapon
+  instead of slicing across the face.
+- **Crawler → Goblin.** `drawGoblinFace()` replaces the sphere: pointy ears,
+  a jagged cracked-eggshell cap over the crown, big round eyes, small fangs.
+  The old "facing nose" wedge is skipped for it since the face itself is
+  already directional.
+- Both helpers live in the shared render-helpers section and take a color
+  options object, so the remaining 3 tower types and ~10 enemy types
+  (including bosses) can reuse them with different palettes/accessories
+  rather than needing bespoke code each.
+
+**Bug found and fixed along the way:** `updateGame()` — which drives
+`Tower.update()`, and with it the placement materialize animation — only
+runs while `gameState === 'playing'`. A tower placed before the first wave,
+or between waves, therefore never advanced `spawnAge` past 0, which is
+scale/alpha 0 in the materialize animation — i.e. it stayed completely
+invisible until the next wave started. Pre-existing, not specific to the
+new art (the plain sphere body was just as invisible under the same
+condition), only surfaced now because this pass screenshotted that exact
+pre-wave window for the first time. Fixed by ticking the cosmetic parts of
+`Tower.update()` (spawn/recoil) every frame regardless of game state.
+
 ### Phase C — UI chrome refinement
 
 - **Tower cards**: hover-lift + glow micro-interaction, an icon "chip"

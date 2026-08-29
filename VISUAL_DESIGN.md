@@ -222,8 +222,7 @@ pre-wave window for the first time. Fixed by ticking the cosmetic parts of
 - **Tower cards**: hover-lift + glow micro-interaction, an icon "chip"
   background behind the emoji instead of it floating on flat panel color.
 - **Map-select cards**: replace the static emoji with a tiny rendered path
-  preview (a mini canvas or inline SVG tracing each map's actual route) —
-  high-value because it lets the choice be seen, not just described.
+  preview — ✅ shipped, see "Map & terrain pass" below.
 - **Sanctum/achievement cards**: a shimmer sweep on newly-unlocked cards.
 - **Font loading**: `Cinzel Decorative` / `Crimson Text` / `MedievalSharp`
   load from a Google Fonts `@import`, which silently fails under network
@@ -232,11 +231,17 @@ pre-wave window for the first time. Fixed by ticking the cosmetic parts of
   files (or at minimum a tighter fallback stack) makes the intended look
   reliable instead of best-effort.
 
-### Phase D — Real art asset pipeline (the big lift, optional)
+### Phase D — Real art asset pipeline (the big lift, optional) — in progress
 
-Everything above is procedural canvas drawing — very good procedural, now,
-but still shapes and gradients rather than authored art. The next real
-jump in perceived quality is:
+This was written as a hypothetical; it's now real for one tower. The
+Archer's sprite pipeline (background-removed real art, idle/aim/fire pose
+keys, `drawTowerSprite()`, mirroring) shipped above and works exactly as
+scoped here — the remaining scope is the same treatment for Mage/Cannon/
+Frost and the enemy roster, gated on the user sourcing more images (they're
+generating art with paid credits, so this is paced by that, not code).
+
+Everything else below is still procedural canvas drawing — very good
+procedural, but still shapes and gradients rather than authored art:
 
 - Hand-drawn or AI-generated sprite sheets for towers/enemies/bosses,
   swapped in via `ctx.drawImage()` — the draw methods already isolate
@@ -263,6 +268,48 @@ and "looks like a funded indie release."
   selection there).
 - The font-loading fix from Phase C also functions as a robustness fix,
   not just a polish one.
+
+### Map & terrain pass — ✅ shipped
+
+Towers/enemies were getting all the attention; the battlefield itself was
+still a flat repeating checkerboard with two maps that looked nearly
+identical despite very different lore ("shattered ruins" vs. "long exposed
+road"). Explored both maps via screenshot first rather than guessing at
+scope, which is what surfaced the map-select screen as the biggest gap —
+two plain emoji standing in for the actual choice being made.
+
+- **Real path previews on map-select**, replacing the static emoji:
+  `renderMapPreview()` draws each map's actual route (start/end dots, the
+  gate marker where relevant) onto a small `<canvas>` per card, at map-
+  select time — a player can now see the shape of what they're picking
+  instead of reading a description and hoping.
+- **Per-map ground theming** via a new `theme` field on `MAPS` entries
+  (`'ruins'` for The Shattered Gate, `'road'` for The Long Road), threaded
+  through `GameMap`'s constructor: different path base color, glow color,
+  and buildable-tile texture pattern (scattered hairline cracks + rubble
+  flecks for ruins; parallel worn erosion streaks for road). The two maps
+  now read as visually distinct battlefields, not the same tile set with a
+  different name.
+- Texture detail is hashed off `(col, row)` (`tileHash()`) rather than
+  re-rolled every frame, so it's stable instead of shimmering — cheap
+  (a couple of extra small draws per buildable tile) and confirmed not to
+  cost anything: rAF round-trip measured at ~3ms with it running, no
+  different from before.
+- **Iterated on legibility**: the first texture pass used dark-on-dark
+  shading (rgba(0,0,0,...) shadows on tiles that are already near-black),
+  which was screenshotted and found to be essentially invisible. Switched
+  to light-on-dark highlights instead and raised the opacity until it
+  actually reads at real battlefield scale without becoming distracting.
+- **Upgraded spawn/exit markers** to pulse (matching the game's existing
+  "living glow" language already used for the Breach gate and tower
+  plinths) instead of sitting static — a small thing, but everything else
+  on the board breathes and the markers were the one exception.
+
+Verified: the map-select previews render correctly for both maps and the
+Daily Vigil card; gate-sealing (which reconstructs the map's tiles through
+the same code path the `theme` field now flows through) still works with
+no errors; full regression suite and an rAF responsiveness check both pass
+clean.
 
 ## Suggested order
 

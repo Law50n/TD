@@ -375,6 +375,7 @@
   }
   .map-card:hover { border-color: var(--spire-gold); background: rgba(45,27,78,0.6); }
   .map-card .map-emoji { font-size: 30px; flex-shrink: 0; }
+  .map-card .map-preview { flex-shrink: 0; border-radius: 2px; border: 1px solid rgba(139,92,246,0.25); }
   .map-card .map-name { font-family: 'Cinzel Decorative', serif; font-size: 15px; color: var(--spire-gold-light); margin-bottom: 4px; }
   .map-card .map-desc { font-size: 12px; color: var(--text-dim); line-height: 1.6; }
   .map-card .map-tag { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--rune-cyan); margin-top: 6px; }
@@ -1555,9 +1556,9 @@ const MAP2_PATH = [
 // the map-select screen and newGame() both just iterate this array.
 const MAPS = [
   { id: 'map1', name: 'The Shattered Gate', emoji: '🌀', path: MAP1_PATH,
-    desc: 'A tight, coiled path through the ruins. Room to maze — seal "The Breach" to buy time at the cost of gold.', hasGate: true },
+    desc: 'A tight, coiled path through the ruins. Room to maze — seal "The Breach" to buy time at the cost of gold.', hasGate: true, theme: 'ruins' },
   { id: 'map2', name: 'The Long Road', emoji: '🛤', path: MAP2_PATH,
-    desc: 'A long, exposed corridor with nowhere to hide. No chokepoints — just distance, and how you use it.', hasGate: false },
+    desc: 'A long, exposed corridor with nowhere to hide. No chokepoints — just distance, and how you use it.', hasGate: false, theme: 'road' },
 ];
 
 // --- META-PROGRESSION: Sanctum upgrades ---
@@ -1887,7 +1888,7 @@ class ParticleSystem {
 // The GameMap can be instantiated with different path arrays.
 // ============================================================
 class GameMap {
-  constructor(canvas, pathCoords, hasGate) {
+  constructor(canvas, pathCoords, hasGate, theme) {
     this.canvas = canvas;
     this.pathCoords = pathCoords;
     this.cols = GRID_COLS;
@@ -1904,6 +1905,7 @@ class GameMap {
     this.animTime = 0;
     this.hasGate = !!hasGate; // whether this map has "The Breach" mazing gate at all
     this.gateSealed = false; // light mazing: has "The Breach" gate been sealed this run?
+    this.theme = theme || 'ruins'; // 'ruins' (cracked masonry) or 'road' (worn dirt) ground texture
     this._init();
   }
   // Rebuilds tiles/pathSet/buildable from the current pathCoords. Safe to
@@ -2000,11 +2002,11 @@ class GameMap {
         const x = ox + c * tw, y = oy + r * th;
         const type = this.tiles[r][c];
         if (type === 'path') {
-          // Path gradient
-          ctx.fillStyle = '#1a1028';
+          // Path base — 'road' (worn dirt) reads warmer/duller than 'ruins'
+          // (enchanted flagstone), so the two maps don't look identical.
+          ctx.fillStyle = this.theme === 'road' ? '#201a12' : '#1a1028';
           ctx.fillRect(x, y, tw, th);
-          // Subtle path stones
-          ctx.fillStyle = 'rgba(90,70,120,0.3)';
+          ctx.fillStyle = this.theme === 'road' ? 'rgba(120,95,60,0.28)' : 'rgba(90,70,120,0.3)';
           ctx.fillRect(x+1, y+1, tw-2, th-2);
         } else if (type === 'build') {
           // Buildable tiles: checkerboard base + a faint inner panel edge
@@ -2015,6 +2017,47 @@ class GameMap {
           ctx.strokeStyle = 'rgba(255,255,255,0.035)';
           ctx.lineWidth = 1;
           ctx.strokeRect(x + 1.5, y + 1.5, tw - 3, th - 3);
+
+          // Ground texture: a few deterministic per-tile details (hashed
+          // off col/row, not re-rolled each frame) so the battlefield reads
+          // as textured terrain instead of a flat repeating checkerboard.
+          const h1 = tileHash(c, r, 1), h2 = tileHash(c, r, 2), h3 = tileHash(c, r, 3);
+          if (this.theme === 'road') {
+            // Worn linear erosion streaks — a warm highlight (dark-on-dark
+            // shadows don't read against these near-black tiles)
+            ctx.strokeStyle = 'rgba(200,170,110,0.2)';
+            ctx.lineWidth = 1;
+            const streaks = 1 + Math.floor(h1 * 2);
+            for (let i = 0; i < streaks; i++) {
+              const sy = y + th * (0.25 + 0.5 * tileHash(c, r, 10 + i));
+              const len = tw * (0.3 + 0.4 * tileHash(c, r, 20 + i));
+              const sx = x + tw * 0.5 - len / 2;
+              ctx.beginPath();
+              ctx.moveTo(sx, sy);
+              ctx.lineTo(sx + len, sy);
+              ctx.stroke();
+            }
+          } else {
+            // Ruins: a scattered hairline crack, and on some tiles a small
+            // fleck of rubble — light highlights, not dark shadows, so they
+            // actually read against the near-black tile base
+            if (h1 > 0.5) {
+              ctx.strokeStyle = 'rgba(160,140,190,0.3)';
+              ctx.lineWidth = 1;
+              const cx = x + tw * (0.2 + h2 * 0.6), cy = y + th * (0.2 + h3 * 0.6);
+              const ang = h1 * Math.PI * 2;
+              const len = Math.min(tw, th) * (0.3 + h2 * 0.25);
+              ctx.beginPath();
+              ctx.moveTo(cx, cy);
+              ctx.lineTo(cx + Math.cos(ang) * len, cy + Math.sin(ang) * len);
+              ctx.stroke();
+            }
+            if (h2 > 0.55) {
+              ctx.fillStyle = 'rgba(180,160,210,0.3)';
+              const rx = x + tw * (0.3 + h3 * 0.4), ry = y + th * (0.3 + h1 * 0.4);
+              ctx.fillRect(rx, ry, 2.5, 2.5);
+            }
+          }
         } else if (type === 'tower') {
           ctx.fillStyle = '#12101f';
           ctx.fillRect(x, y, tw, th);
@@ -2026,11 +2069,12 @@ class GameMap {
     if (this.worldPath.length > 1) {
       ctx.save();
       const pulse = 0.5 + 0.5 * Math.sin(this.animTime * 1.5);
-      ctx.strokeStyle = `rgba(100,60,180,${0.25 + pulse * 0.15})`;
+      const pathGlow = this.theme === 'road' ? '180,140,70' : '100,60,180';
+      ctx.strokeStyle = `rgba(${pathGlow},${0.25 + pulse * 0.15})`;
       ctx.lineWidth = Math.max(tw - 2, 4);
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.shadowColor = 'rgba(139,92,246,0.3)';
+      ctx.shadowColor = `rgba(${pathGlow},0.3)`;
       ctx.shadowBlur = 8;
       ctx.beginPath();
       ctx.moveTo(this.worldPath[0].x, this.worldPath[0].y);
@@ -2071,7 +2115,7 @@ class GameMap {
       }
 
       // Path edge lines
-      ctx.strokeStyle = `rgba(139,92,246,${0.15 + pulse * 0.1})`;
+      ctx.strokeStyle = `rgba(${pathGlow},${0.15 + pulse * 0.1})`;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(this.worldPath[0].x, this.worldPath[0].y);
@@ -2080,23 +2124,37 @@ class GameMap {
       ctx.restore();
     }
 
-    // Draw start/end markers
+    // Draw start/end markers — both pulse, matching the game's existing
+    // "living" glow language (Breach gate, plinths) instead of sitting
+    // static.
     if (this.worldPath.length > 0) {
       const start = this.worldPath[0];
       const end = this.worldPath[this.worldPath.length - 1];
-      // Start: red portal
+      // Start: a small pulsing void-rift
+      const spawnPulse = 0.5 + 0.5 * Math.sin(this.animTime * 3);
       ctx.save();
       ctx.shadowColor = '#ff4444';
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur = 10 + 6 * spawnPulse;
+      ctx.strokeStyle = `rgba(255,68,68,${0.5 + 0.3 * spawnPulse})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(start.x, start.y, Math.max(tw, th) * 0.22 + spawnPulse * 2, 0, Math.PI * 2);
+      ctx.stroke();
       ctx.fillStyle = '#ff4444';
       ctx.beginPath();
-      ctx.arc(start.x, start.y, 6, 0, Math.PI * 2);
+      ctx.arc(start.x, start.y, 5, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
-      // End: golden spire
+      // End: golden spire with a pulsing glow ring behind it
+      const endPulse = 0.5 + 0.5 * Math.sin(this.animTime * 2.5 + 1);
       ctx.save();
       ctx.shadowColor = '#c9a84c';
-      ctx.shadowBlur = 16;
+      ctx.shadowBlur = 14 + 8 * endPulse;
+      ctx.strokeStyle = `rgba(201,168,76,${0.35 + 0.3 * endPulse})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(end.x, end.y, Math.max(tw, th) * 0.32 + endPulse * 2, 0, Math.PI * 2);
+      ctx.stroke();
       ctx.fillStyle = '#c9a84c';
       ctx.font = `${Math.max(tw, 14)}px serif`;
       ctx.textAlign = 'center';
@@ -2225,6 +2283,58 @@ class GameMap {
 // everything on the canvas a consistent, slightly-3D "painted" look
 // without needing actual art assets.
 // ============================================================
+// Deterministic pseudo-random [0,1) per (col,row,salt) — used for ground
+// texture detail that must stay put frame to frame instead of shimmering,
+// without pre-generating and storing a texture map per tile.
+function tileHash(c, r, salt) {
+  let h = (c * 374761393 + r * 668265263 + salt * 2246822519) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+  return (h ^ (h >>> 16)) / 4294967295;
+}
+// Renders a small static preview of a map's path onto a <canvas>, for the
+// map-select screen — lets a player see the actual route shape before
+// picking instead of a generic emoji standing in for it.
+function renderMapPreview(canvas, mapDef) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#0f0a1e';
+  ctx.fillRect(0, 0, w, h);
+
+  const cellW = w / GRID_COLS, cellH = h / GRID_ROWS;
+  const pts = mapDef.path.map(([c, r]) => ({ x: (c + 0.5) * cellW, y: (r + 0.5) * cellH }));
+  const pathGlow = mapDef.theme === 'road' ? '180,140,70' : '139,92,246';
+
+  ctx.strokeStyle = `rgba(${pathGlow},0.9)`;
+  ctx.lineWidth = Math.max(cellH * 0.7, 1.5);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.shadowColor = `rgba(${pathGlow},0.6)`;
+  ctx.shadowBlur = 3;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#ff4444';
+  ctx.beginPath();
+  ctx.arc(pts[0].x, pts[0].y, Math.max(cellH * 0.45, 2), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#c9a84c';
+  ctx.beginPath();
+  ctx.arc(pts[pts.length - 1].x, pts[pts.length - 1].y, Math.max(cellH * 0.45, 2), 0, Math.PI * 2);
+  ctx.fill();
+
+  if (mapDef.hasGate) {
+    const g = { x: (GATE_TILE.c + 0.5) * cellW, y: (GATE_TILE.r + 0.5) * cellH };
+    ctx.strokeStyle = '#4fc3f7';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(g.x, g.y, Math.max(cellH * 0.55, 2.5), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
 function pathPolygon(ctx, cx, cy, r, sides, rotation = 0) {
   ctx.beginPath();
   for (let i = 0; i <= sides; i++) {
@@ -3640,24 +3750,34 @@ const Game = (function() {
       subEl.textContent = best > 0 ? `Your best today: Wave ${best}` : 'Same challenge for everyone today — come back tomorrow for a new one.';
       cardsEl.innerHTML = `
         <div class="map-card" onclick="Game.confirmDailyVigil()">
-          <span class="map-emoji">${seed.map.emoji}</span>
+          <canvas class="map-preview" width="96" height="56" data-preview-id="daily"></canvas>
           <div>
             <div class="map-name">${seed.map.name}</div>
             <div class="map-desc">${seed.map.desc}</div>
             <div class="map-tag">${seed.modifier.emoji} ${seed.modifier.name} — ${seed.modifier.desc}</div>
           </div>
         </div>`;
+      requestAnimationFrame(() => {
+        const c = cardsEl.querySelector('[data-preview-id="daily"]');
+        if (c) renderMapPreview(c, seed.map);
+      });
     } else {
       titleEl.textContent = 'Choose Your Battlefield';
       subEl.textContent = 'Every vigil begins with a choice of ground.';
       cardsEl.innerHTML = MAPS.map(m => `
         <div class="map-card" onclick="Game.confirmMapChoice('${m.id}')">
-          <span class="map-emoji">${m.emoji}</span>
+          <canvas class="map-preview" width="96" height="56" data-preview-id="${m.id}"></canvas>
           <div>
             <div class="map-name">${m.name}</div>
             <div class="map-desc">${m.desc}</div>
           </div>
         </div>`).join('');
+      requestAnimationFrame(() => {
+        MAPS.forEach(m => {
+          const c = cardsEl.querySelector(`[data-preview-id="${m.id}"]`);
+          if (c) renderMapPreview(c, m);
+        });
+      });
     }
   }
 
@@ -3720,7 +3840,7 @@ const Game = (function() {
     runEssenceAwarded = 0;
 
     const mapDef = MAPS.find(m => m.id === selectedMapId) || MAPS[0];
-    gameMap = new GameMap(canvas, mapDef.path, mapDef.hasGate);
+    gameMap = new GameMap(canvas, mapDef.path, mapDef.hasGate, mapDef.theme);
     gameMap.resize(canvas.width, canvas.height);
     waveManager = new WaveManager(WAVE_DEFS, ENEMY_DEFS);
     particles = new ParticleSystem();

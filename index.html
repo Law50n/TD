@@ -2145,21 +2145,49 @@ class GameMap {
       ctx.arc(start.x, start.y, 5, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
-      // End: golden spire with a pulsing glow ring behind it
+      // End: a pot of gold — what the goblins are actually raiding for —
+      // drawn flat and bold-outlined (matching the wider Derp art style)
+      // rather than gradient-shaded like the rest of the battlefield, with
+      // a pulsing warm glow ring behind it.
       const endPulse = 0.5 + 0.5 * Math.sin(this.animTime * 2.5 + 1);
+      const potR = Math.max(tw, th) * 0.34;
       ctx.save();
-      ctx.shadowColor = '#c9a84c';
-      ctx.shadowBlur = 14 + 8 * endPulse;
-      ctx.strokeStyle = `rgba(201,168,76,${0.35 + 0.3 * endPulse})`;
+      ctx.shadowColor = '#ffd54f';
+      ctx.shadowBlur = 12 + 8 * endPulse;
+      ctx.strokeStyle = `rgba(255,213,79,${0.3 + 0.3 * endPulse})`;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(end.x, end.y, Math.max(tw, th) * 0.32 + endPulse * 2, 0, Math.PI * 2);
+      ctx.arc(end.x, end.y, potR + endPulse * 2, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.fillStyle = '#c9a84c';
-      ctx.font = `${Math.max(tw, 14)}px serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('✦', end.x, end.y);
+
+      const pcx = end.x, pcy = end.y + potR * 0.15;
+      // Cauldron body
+      ctx.shadowBlur = 4;
+      ctx.fillStyle = '#2b2620';
+      ctx.strokeStyle = '#0d0b08';
+      ctx.lineWidth = Math.max(1.5, potR * 0.14);
+      ctx.beginPath();
+      ctx.ellipse(pcx, pcy, potR * 0.78, potR * 0.62, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      // Rim
+      ctx.fillStyle = '#3a332a';
+      ctx.beginPath();
+      ctx.ellipse(pcx, pcy - potR * 0.45, potR * 0.68, potR * 0.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      // Coins piled up and spilling over the rim
+      ctx.shadowColor = '#ffd54f';
+      ctx.shadowBlur = 6;
+      ctx.fillStyle = '#ffd54f';
+      ctx.strokeStyle = '#b8860b';
+      ctx.lineWidth = Math.max(1, potR * 0.05);
+      [[-0.32, -0.55], [0, -0.68], [0.32, -0.55], [-0.15, -0.42], [0.18, -0.42]].forEach(([dx, dy]) => {
+        ctx.beginPath();
+        ctx.arc(pcx + dx * potR, pcy + dy * potR, potR * 0.17, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      });
       ctx.restore();
     }
 
@@ -2218,16 +2246,19 @@ class GameMap {
     // Vignette: one large radial gradient over the whole map, darkening
     // the edges so the battlefield reads with some depth instead of
     // uniformly flat-lit from corner to corner. Cheap — a single gradient
-    // and fillRect per frame, not per-tile.
+    // and fillRect per frame, not per-tile. Tinted mossy-green-black rather
+    // than neutral black for the spooky-woods atmosphere.
     const mapW = tw * this.cols, mapH = th * this.rows;
     const vignette = ctx.createRadialGradient(
       ox + mapW / 2, oy + mapH / 2, Math.min(mapW, mapH) * 0.28,
       ox + mapW / 2, oy + mapH / 2, Math.max(mapW, mapH) * 0.75
     );
     vignette.addColorStop(0, 'rgba(0,0,0,0)');
-    vignette.addColorStop(1, 'rgba(0,0,0,0.4)');
+    vignette.addColorStop(1, 'rgba(6,14,8,0.5)');
     ctx.fillStyle = vignette;
     ctx.fillRect(ox, oy, mapW, mapH);
+
+    this.drawSpookyAtmosphere(ctx);
 
     // Selected tile highlight
     if (selectedTile) {
@@ -2253,6 +2284,72 @@ class GameMap {
       ctx.fillRect(x, y, tw, th);
       ctx.strokeRect(x + 1, y + 1, tw - 2, th - 2);
       ctx.restore();
+    }
+  }
+  // Spooky-woods atmosphere: a pale moon, dark tree silhouettes framing
+  // the corners, and drifting ground fog. Entirely screen-space (anchored
+  // to canvas dimensions, not tile coordinates), so it never sits on a
+  // buildable tile or interferes with clicking.
+  drawSpookyAtmosphere(ctx) {
+    const cw = this.canvas.width, ch = this.canvas.height;
+    const moonPulse = 0.5 + 0.5 * Math.sin(this.animTime * 0.6);
+
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.shadowColor = 'rgba(210,225,190,0.6)';
+    ctx.shadowBlur = Math.min(cw, ch) * 0.05 + moonPulse * 4;
+    ctx.fillStyle = '#dce6c8';
+    ctx.beginPath();
+    ctx.arc(cw * 0.9, ch * 0.13, Math.min(cw, ch) * 0.045, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(4,10,4,0.6)';
+    ctx.strokeStyle = 'rgba(4,10,4,0.6)';
+    this._drawTreeSilhouette(ctx, cw * 0.03, ch * 1.02, Math.min(cw, ch) * 0.24, -1);
+    this._drawTreeSilhouette(ctx, cw * 0.985, ch * 1.0, Math.min(cw, ch) * 0.19, 1);
+    ctx.restore();
+
+    // Drifting ground fog — a few soft translucent ellipses looping across
+    // the bottom of the canvas
+    ctx.save();
+    ctx.globalAlpha = 0.09;
+    ctx.fillStyle = '#a8c8a0';
+    for (let i = 0; i < 4; i++) {
+      const speed = 5 + i * 1.3;
+      const span = cw + 220;
+      const fx = ((this.animTime * speed + i * 210) % span) - 110;
+      const fy = ch * (0.78 + 0.05 * Math.sin(this.animTime * 0.3 + i * 2));
+      ctx.beginPath();
+      ctx.ellipse(fx, fy, 100, 20, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  // A simple gnarled bare tree silhouette: a trunk plus a few angled
+  // branches, drawn from a base point (x,y) growing upward. `dir` (-1/1)
+  // leans the branches toward the play area rather than off-canvas.
+  _drawTreeSilhouette(ctx, x, y, size, dir) {
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + dir * size * 0.15, y - size * 0.75);
+    ctx.lineTo(x + dir * size * 0.05, y - size);
+    ctx.lineTo(x - dir * size * 0.06, y - size * 0.7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.lineWidth = Math.max(2, size * 0.035);
+    for (let i = 0; i < 4; i++) {
+      const by = y - size * (0.4 + i * 0.14);
+      const bl = size * (0.4 - i * 0.06);
+      ctx.beginPath();
+      ctx.moveTo(x, by);
+      ctx.lineTo(x + dir * bl, by - bl * 0.65);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, by);
+      ctx.lineTo(x - dir * bl * 0.55, by - bl * 0.45);
+      ctx.stroke();
     }
   }
   drawTowers(ctx, selectedTile, gameTime) {

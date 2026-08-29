@@ -311,6 +311,39 @@ the same code path the `theme` field now flows through) still works with
 no errors; full regression suite and an rAF responsiveness check both pass
 clean.
 
+**Spooky atmosphere + pot of gold.** User request, with a reference image
+of the wider "Derp" franchise's flat/bold-outline art style (a Tamagotchi-
+style companion app, not the painterly tower art) — good news, since
+environment decoration is exactly what Canvas 2D shapes are actually good
+at, unlike character rendering. No real art needed here.
+
+- **Pot of gold** replaces the gold "✦" star at the path's end — a black
+  cauldron (flat fill, bold dark outline, no gradient shading, matching the
+  reference's style rather than the rest of the battlefield's painted
+  look) with coins piled on top and a pulsing warm glow. Reframes the
+  fiction to match the goblin enemies already shipped: they're raiding for
+  the gold, not marching on a Warden's spire.
+- **`drawSpookyAtmosphere()`**: a pale glowing moon, two gnarled bare-tree
+  silhouettes framing the bottom corners (procedural trunk + branches, no
+  two alike since size/lean mirror by corner), and drifting low-opacity
+  ground fog that loops across the bottom of the screen. All screen-space
+  (anchored to canvas width/height, not tile coordinates), so none of it
+  can ever sit on a buildable tile or block a click — a hazard the tile-
+  bound texture pass earlier in this doc had to actively avoid.
+- Vignette recolored from neutral black to a mossy green-black tint for
+  the "woods at night" mood; layers under the atmosphere elements, over
+  the tile texture, so nothing added here fights what shipped earlier in
+  this pass.
+- **Scope note**: this is atmosphere/decoration on the two existing maps,
+  not a full lore rewrite — enemy/wave/achievement text still reads "Void
+  Legion." Deliberately left that alone rather than assume the fuller
+  goblins-vs-gold reframe was wanted; flagged back to the user rather than
+  guessing.
+
+Verified: pot-of-gold and tree-silhouette close-ups confirm both render as
+intended at real scale; full regression suite and an rAF check (~5ms, no
+regression from the added per-frame draws) both pass clean.
+
 ## Suggested order
 
 **B → C → E → D.** Motion and chrome polish compound with what already

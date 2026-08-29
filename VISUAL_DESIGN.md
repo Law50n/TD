@@ -103,6 +103,24 @@ stripped the inherited plinth glow (`shadowBlur`) before drawing the head
 and enlarged it slightly — at true battlefield scale a colored blur haze
 was washing the small face into an unreadable blob.
 
+**Second round of feedback:** "not at all, this is just a better quality
+version of your first attempt" — a floating head on a plinth reads as a
+portrait, not a figure. The reference the user wants (a full illustrated
+"Archer Tower" card: legs, a torso in a shirt, arms drawing a bow with a
+visible string) is a full character, not a bust. Rebuilt the Archer as
+`drawDerpArcher()`: legs planted on the plinth, a torso/shirt ellipse, the
+Derp head on top, and — the main addition — a bow rig that rotates to face
+the aim direction: an off-arm to the grip, a bow drawn as a real curved arc
+(a circle arc centered behind the hand, so it bulges toward the archer with
+tips angled forward — not a straight wedge), a taut string pulled back to
+the draw hand, and a nocked arrow with a triangular head and V-fletching.
+`Projectile.draw()` now branches on `towerType === 'archer'` to render an
+actual arrow in flight (shaft + head + fletching, oriented along the
+velocity vector) instead of a glowing dot. Verified in an isolated render
+at four aim angles for the rig geometry, then in real combat — an enemy
+visibly takes an arrow mid-flight and its health bar drops — plus the full
+regression suite still passes clean.
+
 **Bug found and fixed along the way:** `updateGame()` — which drives
 `Tower.update()`, and with it the placement materialize animation — only
 runs while `gameState === 'playing'`. A tower placed before the first wave,

@@ -2325,6 +2325,135 @@ function drawDerpHead(ctx, cx, cy, r, opts) {
   ctx.restore();
 }
 
+// Full-body Derp archer: legs, torso, head, and a bow rig (both arms, a
+// curved bow, a taut string, a nocked arrow with fletching) that rotates
+// to face the aim direction — a standing figure that visibly shoots
+// arrows, not just a floating head. `x,y` is the ground-level anchor
+// (roughly where the character stands on the plinth); baseSize sets scale.
+function drawDerpArcher(ctx, x, y, baseSize, aimAngle, opts) {
+  const {
+    skinColor = '#e3ddd2', beanieColor = '#e8433f', stripeColor = '#2a9d5c',
+    goggleColor = '#9b6fd6', shirtColor = '#222222', bowColor = '#8a5a34',
+  } = opts || {};
+
+  const groundY = y + baseSize * 0.4;
+  const legW = baseSize * 0.19, legH = baseSize * 0.28;
+  const torsoRX = baseSize * 0.37, torsoRY = baseSize * 0.44;
+  const torsoCY = groundY - legH - torsoRY * 0.7;
+  const headR = baseSize * 0.4;
+  const headCY = torsoCY - torsoRY - headR * 0.85;
+  const shoulderX = x, shoulderY = torsoCY - torsoRY * 0.2;
+  const perp = aimAngle + Math.PI / 2;
+
+  // Bow-hand and string-hand anchor points, both reaching out from the
+  // shoulder along (and opposite) the aim direction.
+  const reach = baseSize * 0.92;
+  const handX = shoulderX + Math.cos(aimAngle) * reach;
+  const handY = shoulderY + Math.sin(aimAngle) * reach;
+  const drawX = shoulderX - Math.cos(aimAngle) * baseSize * 0.18;
+  const drawY = shoulderY - Math.sin(aimAngle) * baseSize * 0.18 - baseSize * 0.1;
+
+  // Bow: an arc of a circle centered behind the hand (opposite the aim
+  // direction) so it bulges toward the archer with its tips angled toward
+  // the target — a real bow silhouette instead of a straight wedge.
+  const bowRadius = baseSize * 0.5;
+  const bowCenterX = handX - Math.cos(aimAngle) * bowRadius;
+  const bowCenterY = handY - Math.sin(aimAngle) * bowRadius;
+  const spanHalf = 0.65;
+  const a1 = perp - spanHalf, a2 = perp + spanHalf;
+  const tip1X = bowCenterX + Math.cos(a1) * bowRadius, tip1Y = bowCenterY + Math.sin(a1) * bowRadius;
+  const tip2X = bowCenterX + Math.cos(a2) * bowRadius, tip2Y = bowCenterY + Math.sin(a2) * bowRadius;
+
+  ctx.lineCap = 'round';
+
+  // Legs
+  ctx.fillStyle = skinColor;
+  ctx.strokeStyle = '#171717';
+  ctx.lineWidth = Math.max(1.3, baseSize * 0.08);
+  [-1, 1].forEach(side => {
+    const lx = x + side * legW * 0.9 - legW / 2;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(lx, groundY - legH, legW, legH, legW * 0.4);
+    else ctx.rect(lx, groundY - legH, legW, legH);
+    ctx.fill();
+    ctx.stroke();
+  });
+
+  // Off-arm: shoulder to the bow hand, steadying the bow
+  ctx.strokeStyle = skinColor;
+  ctx.lineWidth = Math.max(2, baseSize * 0.15);
+  ctx.beginPath();
+  ctx.moveTo(shoulderX, shoulderY);
+  ctx.lineTo(handX, handY);
+  ctx.stroke();
+
+  // Bow
+  ctx.strokeStyle = bowColor;
+  ctx.lineWidth = Math.max(1.5, baseSize * 0.11);
+  ctx.beginPath();
+  ctx.arc(bowCenterX, bowCenterY, bowRadius, a1, a2);
+  ctx.stroke();
+  ctx.fillStyle = '#3a2a1a';
+  ctx.beginPath();
+  ctx.arc(handX, handY, baseSize * 0.09, 0, Math.PI * 2);
+  ctx.fill();
+
+  // String, pulled back to the draw hand
+  ctx.strokeStyle = '#d8d0c0';
+  ctx.lineWidth = Math.max(0.7, baseSize * 0.03);
+  ctx.beginPath();
+  ctx.moveTo(tip1X, tip1Y);
+  ctx.lineTo(drawX, drawY);
+  ctx.lineTo(tip2X, tip2Y);
+  ctx.stroke();
+
+  // Nocked arrow: shaft from the draw hand out past the bow hand, with a
+  // triangular head and V-fletching at the nock end.
+  const arrowTipX = handX + Math.cos(aimAngle) * baseSize * 0.5;
+  const arrowTipY = handY + Math.sin(aimAngle) * baseSize * 0.5;
+  ctx.strokeStyle = '#5c4530';
+  ctx.lineWidth = Math.max(1, baseSize * 0.04);
+  ctx.beginPath();
+  ctx.moveTo(drawX, drawY);
+  ctx.lineTo(arrowTipX, arrowTipY);
+  ctx.stroke();
+  const headLen = baseSize * 0.22, headW = baseSize * 0.12;
+  ctx.fillStyle = '#c9c9c9';
+  ctx.beginPath();
+  ctx.moveTo(arrowTipX + Math.cos(aimAngle) * headLen, arrowTipY + Math.sin(aimAngle) * headLen);
+  ctx.lineTo(arrowTipX + Math.cos(perp) * headW, arrowTipY + Math.sin(perp) * headW);
+  ctx.lineTo(arrowTipX - Math.cos(perp) * headW, arrowTipY - Math.sin(perp) * headW);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = stripeColor;
+  [-1, 1].forEach(side => {
+    ctx.beginPath();
+    ctx.moveTo(drawX, drawY);
+    ctx.lineTo(
+      drawX - Math.cos(aimAngle) * baseSize * 0.13 + Math.cos(perp) * side * baseSize * 0.09,
+      drawY - Math.sin(aimAngle) * baseSize * 0.13 + Math.sin(perp) * side * baseSize * 0.09
+    );
+    ctx.lineTo(drawX - Math.cos(aimAngle) * baseSize * 0.2, drawY - Math.sin(aimAngle) * baseSize * 0.2);
+    ctx.closePath();
+    ctx.fill();
+  });
+
+  // Torso, drawn over the arm/bow rig's shoulder end so the limb reads as
+  // emerging from the body
+  ctx.fillStyle = shirtColor;
+  ctx.strokeStyle = '#171717';
+  ctx.lineWidth = Math.max(1.4, baseSize * 0.09);
+  ctx.beginPath();
+  ctx.ellipse(x, torsoCY, torsoRX, torsoRY, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = stripeColor;
+  ctx.fillRect(x - torsoRX * 0.5, torsoCY + torsoRY * 0.15, torsoRX, torsoRY * 0.18);
+
+  // Head, on top
+  drawDerpHead(ctx, x, headCY, headR, { skinColor, beanieColor, stripeColor, goggleColor });
+}
+
 // Goblin-style enemy head: green skin, pointy ears, a cracked "eggshell"
 // cap across the crown, big round eyes and small fangs — matching the
 // same flat-cartoon/bold-outline style as the Derp towers.
@@ -2545,17 +2674,20 @@ class Tower {
     pathPolygon(ctx, x, y, plinthR - 3, 8, Math.PI / 8);
     ctx.stroke();
 
-    // Tower body: a "Derp" head for the Archer (style proof for the rest of
-    // the roster), a lit sphere for everything else until they get their
-    // own variant.
+    // Tower body: a full standing "Derp" archer figure (legs, torso, head,
+    // a bow rig that rotates to aim) for the Archer, a lit sphere + barrel
+    // wedge for everything else until they get their own variant.
     const isDerp = this.def.id === 'archer';
-    const bodyR = baseSize * (isDerp ? 0.85 : 0.68);
+    const bodyR = baseSize * 0.68;
     if (isDerp) {
       // Kill the inherited plinth glow (shadowBlur/shadowColor) here — at
-      // real battlefield scale a colored blur haze washes the small face
+      // real battlefield scale a colored blur haze washes the small figure
       // out to a solid blob instead of readable features.
       ctx.shadowBlur = 0;
-      drawDerpHead(ctx, bx, by, bodyR, { skinColor: '#e3ddd2', beanieColor: '#e8433f', stripeColor: '#2a9d5c', goggleColor: '#9b6fd6' });
+      drawDerpArcher(ctx, bx, by, baseSize, this.aimAngle, {
+        skinColor: '#e3ddd2', beanieColor: '#e8433f', stripeColor: '#2a9d5c',
+        goggleColor: '#9b6fd6', shirtColor: '#222222', bowColor: '#8a5a34',
+      });
     } else {
       const bodyGrad = ctx.createRadialGradient(bx - bodyR * 0.35, by - bodyR * 0.4, bodyR * 0.15, bx, by, bodyR);
       bodyGrad.addColorStop(0, lightenColor(this.def.color, 0.55));
@@ -2567,33 +2699,29 @@ class Tower {
       ctx.strokeStyle = 'rgba(0,0,0,0.35)';
       ctx.lineWidth = 1.5;
       ctx.stroke();
-    }
 
-    // Barrel: a tapered wedge (not a bare line) with a glowing muzzle tip.
-    // For the Derp head it starts at the head's edge instead of dead-center
-    // so it reads as a held weapon instead of cutting across the face.
-    ctx.shadowBlur = 6;
-    const barrelLen = baseSize * 1.35;
-    const barrelW = Math.max(tw * 0.16, 3.5);
-    const ang = this.aimAngle;
-    const barrelOriginOffset = isDerp ? bodyR * 1.5 : 0;
-    const ox = bx + Math.cos(ang) * barrelOriginOffset, oy = by + Math.sin(ang) * barrelOriginOffset;
-    const px_ = Math.cos(ang + Math.PI / 2) * barrelW * 0.5, py_ = Math.sin(ang + Math.PI / 2) * barrelW * 0.5;
-    const tipX = bx + Math.cos(ang) * barrelLen, tipY = by + Math.sin(ang) * barrelLen;
-    const tpx = Math.cos(ang + Math.PI / 2) * barrelW * 0.22, tpy = Math.sin(ang + Math.PI / 2) * barrelW * 0.22;
-    ctx.fillStyle = this.def.color;
-    ctx.beginPath();
-    ctx.moveTo(ox + px_, oy + py_);
-    ctx.lineTo(tipX + tpx, tipY + tpy);
-    ctx.lineTo(tipX - tpx, tipY - tpy);
-    ctx.lineTo(ox - px_, oy - py_);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = this.def.projectileColor || '#fff';
-    ctx.shadowBlur = 9;
-    ctx.beginPath();
-    ctx.arc(tipX, tipY, barrelW * 0.32, 0, Math.PI * 2);
-    ctx.fill();
+      // Barrel: a tapered wedge (not a bare line) with a glowing muzzle tip.
+      ctx.shadowBlur = 6;
+      const barrelLen = baseSize * 1.35;
+      const barrelW = Math.max(tw * 0.16, 3.5);
+      const ang = this.aimAngle;
+      const px_ = Math.cos(ang + Math.PI / 2) * barrelW * 0.5, py_ = Math.sin(ang + Math.PI / 2) * barrelW * 0.5;
+      const tipX = bx + Math.cos(ang) * barrelLen, tipY = by + Math.sin(ang) * barrelLen;
+      const tpx = Math.cos(ang + Math.PI / 2) * barrelW * 0.22, tpy = Math.sin(ang + Math.PI / 2) * barrelW * 0.22;
+      ctx.fillStyle = this.def.color;
+      ctx.beginPath();
+      ctx.moveTo(bx + px_, by + py_);
+      ctx.lineTo(tipX + tpx, tipY + tpy);
+      ctx.lineTo(tipX - tpx, tipY - tpy);
+      ctx.lineTo(bx - px_, by - py_);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = this.def.projectileColor || '#fff';
+      ctx.shadowBlur = 9;
+      ctx.beginPath();
+      ctx.arc(tipX, tipY, barrelW * 0.32, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     // Upgrade level markers: small gems ringing the plinth
     if (this.level > 0) {
@@ -2723,6 +2851,10 @@ class Projectile {
   }
   draw(ctx) {
     if (this.done) return;
+    if (this.towerType === 'archer') {
+      this.drawArrow(ctx);
+      return;
+    }
     ctx.save();
     ctx.shadowColor = this.color;
     ctx.shadowBlur = 10;
@@ -2736,6 +2868,44 @@ class Projectile {
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.size * 0.4, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+  }
+  // An actual arrow shape — thin shaft, triangular head, V-fletching —
+  // oriented along the flight direction instead of a plain glowing dot.
+  drawArrow(ctx) {
+    const ang = Math.atan2(this.vy, this.vx);
+    const perp = ang + Math.PI / 2;
+    const len = this.size * 3.2, headLen = this.size * 1.3, headW = this.size * 0.85;
+    const tipX = this.x + Math.cos(ang) * len * 0.5, tipY = this.y + Math.sin(ang) * len * 0.5;
+    const tailX = this.x - Math.cos(ang) * len * 0.5, tailY = this.y - Math.sin(ang) * len * 0.5;
+    ctx.save();
+    ctx.shadowColor = this.color;
+    ctx.shadowBlur = 6;
+    ctx.strokeStyle = '#8a5a34';
+    ctx.lineWidth = Math.max(1, this.size * 0.35);
+    ctx.beginPath();
+    ctx.moveTo(tailX, tailY);
+    ctx.lineTo(tipX, tipY);
+    ctx.stroke();
+    ctx.fillStyle = '#d8d8d8';
+    ctx.beginPath();
+    ctx.moveTo(tipX + Math.cos(ang) * headLen, tipY + Math.sin(ang) * headLen);
+    ctx.lineTo(tipX + Math.cos(perp) * headW * 0.5, tipY + Math.sin(perp) * headW * 0.5);
+    ctx.lineTo(tipX - Math.cos(perp) * headW * 0.5, tipY - Math.sin(perp) * headW * 0.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = this.color;
+    [-1, 1].forEach(side => {
+      ctx.beginPath();
+      ctx.moveTo(tailX, tailY);
+      ctx.lineTo(
+        tailX - Math.cos(ang) * this.size * 0.5 + Math.cos(perp) * side * this.size * 0.55,
+        tailY - Math.sin(ang) * this.size * 0.5 + Math.sin(perp) * side * this.size * 0.55
+      );
+      ctx.lineTo(tailX - Math.cos(ang) * this.size * 0.8, tailY - Math.sin(ang) * this.size * 0.8);
+      ctx.closePath();
+      ctx.fill();
+    });
     ctx.restore();
   }
 }

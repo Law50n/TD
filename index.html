@@ -2527,6 +2527,54 @@ function drawGoblinFace(ctx, cx, cy, r, opts) {
   ctx.restore();
 }
 
+// Goblin limbs: small alternating legs (a walk cycle driven by animTime),
+// a curled tail trailing behind the facing direction, and a raised clawed
+// hand near the head — turns the goblin from a floating face into a small
+// standing/walking figure, matching the reference art's full-body look.
+// Drawn in two passes around the face/body: legs+tail behind, hand+claws
+// in front (call `back` first, then the face, then `front`).
+function drawGoblinLimbs(ctx, x, y, size, facingAngle, animTime, skinColor, pass) {
+  ctx.save();
+  ctx.fillStyle = skinColor;
+  ctx.strokeStyle = '#173417';
+  ctx.lineWidth = Math.max(1.1, size * 0.09);
+
+  if (pass === 'back') {
+    // Legs: alternate swing for a walk cycle, planted just below the body
+    // so they don't creep up into the fangs/chin area.
+    const walkPhase = Math.sin(animTime * 2);
+    [-1, 1].forEach(side => {
+      const swing = walkPhase * side * size * 0.12;
+      const lx = x + side * size * 0.26 + swing * 0.5;
+      const ly = y + size * 1.05;
+      ctx.beginPath();
+      ctx.ellipse(lx, ly, size * 0.13, size * 0.22, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    });
+  } else {
+    // Raised clawed hand, held out clearly beside the head (the face itself
+    // is non-directional, so this stays at a fixed spot rather than
+    // drifting over an eye as facingAngle changes) — bigger and spaced
+    // further out than a first pass, which read as a stray bump on the ear.
+    const handX = x - size * 1.15, handY = y - size * 0.25;
+    ctx.beginPath();
+    ctx.arc(handX, handY, size * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = '#0d200d';
+    ctx.lineWidth = Math.max(1, size * 0.06);
+    ctx.lineCap = 'round';
+    for (let c = -1; c <= 1; c++) {
+      ctx.beginPath();
+      ctx.moveTo(handX, handY);
+      ctx.lineTo(handX + Math.cos(-2.0 + c * 0.55) * size * 0.28, handY + Math.sin(-2.0 + c * 0.55) * size * 0.28);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 // ============================================================
 // SECTION 5: TOWER CLASS
 // SCALABILITY NOTE: All behavior is driven by TOWER_DEFS data.
@@ -3128,7 +3176,9 @@ class Enemy {
     // own variant.
     const isGoblin = this.def.id === 'crawler';
     if (isGoblin) {
+      drawGoblinLimbs(ctx, x, y, size, this.facingAngle, this.animTime, this.def.color, 'back');
       drawGoblinFace(ctx, x, y, size, { skinColor: this.def.color, eyeColor: '#e8e14a' });
+      drawGoblinLimbs(ctx, x, y, size, this.facingAngle, this.animTime, this.def.color, 'front');
     } else {
       // Lit sphere (highlight opposite the facing direction, like a key light)
       const hlAngle = this.facingAngle + Math.PI * 0.85;

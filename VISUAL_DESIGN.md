@@ -121,6 +121,32 @@ at four aim angles for the rig geometry, then in real combat — an enemy
 visibly takes an arrow mid-flight and its health bar drops — plus the full
 regression suite still passes clean.
 
+**Considered a framework switch (Phaser 3), declined.** A suggestion came
+in to rebuild tower AI/projectiles/animation on Phaser. Reviewed and
+declined: the sample code re-implements targeting, fire-rate cooldowns, and
+homing projectiles that `Tower.findTarget()`/`Projectile` already do, and
+its `scene.add.sprite('archer')` call still needs a real image asset loaded
+first — Phaser doesn't generate art, so it doesn't touch the actual
+bottleneck (no image-generation tool available). A migration would mean
+porting achievements/meta-progression/Daily Vigil/Endless Mode off the
+current loop for zero visual gain. Stayed on plain Canvas 2D.
+
+**Finished the Goblin to match:** the Crawler had a face but no body — legs,
+a walk cycle, a tail, or a gesture. Added `drawGoblinLimbs()`: two legs that
+alternate via the existing `animTime` for a walk cycle, planted just below
+the body so they don't creep into the fangs, and a raised clawed hand held
+clearly beside the head (a fixed spot, since the face itself doesn't rotate
+with facing direction) matching the reference's gesture. A tail was tried
+first but at battlefield scale it was rendered mostly *underneath* the
+body's own fill and read as noise fused to a leg — cut rather than shipped
+half-legible. Iterated on hand placement too: the first pass sat right on
+the ear and read as a stray bump; moved it further out and enlarged it
+until it clearly reads as a separate clawed hand.
+
+Both the Archer/Derp and Crawler/Goblin are now full-body figures rather
+than floating heads/faces, closing out this style pass before it expands
+to the other 3 towers and remaining enemy types.
+
 **Bug found and fixed along the way:** `updateGame()` — which drives
 `Tower.update()`, and with it the placement materialize animation — only
 runs while `gameState === 'playing'`. A tower placed before the first wave,

@@ -178,6 +178,22 @@ sprite (`archer_idle`) shown while the tower has no target, swapping to the
 in-combat sprite the instant `this.target` is set — small bit of life for
 free from art already on hand, verified by screenshotting both states.
 
+**Shooting motion.** A static full-draw pose still looked static — asked to
+make the bow visibly release. Found the existing `recoilOffset`/`recoilVel`
+system (present since the original motion-polish pass, used for the
+procedural barrel wedge on every tower) is dead: on fire it sets
+`recoilVel = -3`, but `recoilOffset` is clamped with `Math.max(0, ...)`,
+so a negative velocity can never push it above zero — it's been a no-op
+for every tower this whole time, not something this session broke. Rather
+than touch that shared system (risk to every other tower for an unrelated
+fix), added an independent, self-contained kick timed off state each tower
+already carries: `timeSinceFire = 1/fireRate - cooldown` (cooldown resets
+to `1/fireRate` the instant `fire()` runs), driving a `kickT` that decays
+over 150ms. `drawTowerSprite()` uses it for a backward snap + scale punch.
+Verified deterministically — called the function directly at `kickT` 0 /
+0.5 / 1.0 and confirmed each stage visibly larger/further back — rather
+than trying to catch the real 150ms window on camera by luck.
+
 **Bug found and fixed along the way:** `updateGame()` — which drives
 `Tower.update()`, and with it the placement materialize animation — only
 runs while `gameState === 'playing'`. A tower placed before the first wave,

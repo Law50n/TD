@@ -2352,15 +2352,23 @@ function drawDerpHead(ctx, cx, cy, r, opts) {
 // it just mirrors horizontally to face left/right, same as most 2D TD
 // games with illustrated units. `nativeFacingLeft` says which way the
 // source art's pose already faces, so the mirror only fires when needed.
-function drawTowerSprite(ctx, img, x, y, baseSize, aimAngle, nativeFacingLeft) {
+// `kickT` (0-1, 1 = the instant of firing, decaying to 0) drives a quick
+// backward snap + scale punch so a static full-draw pose still visibly
+// reacts to each shot instead of just sitting there.
+function drawTowerSprite(ctx, img, x, y, baseSize, aimAngle, nativeFacingLeft, kickT = 0) {
   const targetW = baseSize * 2.3;
   const targetH = targetW * (img.naturalHeight / img.naturalWidth);
   const groundY = y + baseSize * 0.4; // feet land here, same convention as drawDerpArcher's stance
   // aimAngle === null means "not aimed at anything" (e.g. an idle pose) —
   // draw in the source art's native orientation, no mirroring.
   const flip = aimAngle === null ? false : (nativeFacingLeft ? Math.cos(aimAngle) >= 0 : Math.cos(aimAngle) < 0);
+  const kickAngle = aimAngle === null ? 0 : aimAngle;
+  const kickDist = kickT * baseSize * 0.16;
+  const kickScale = 1 + kickT * 0.09;
+  const kx = -Math.cos(kickAngle) * kickDist, ky = -Math.sin(kickAngle) * kickDist;
   ctx.save();
-  ctx.translate(x, groundY - targetH * 0.5);
+  ctx.translate(x + kx, groundY - targetH * 0.5 + ky);
+  ctx.scale(kickScale, kickScale);
   if (flip) ctx.scale(-1, 1);
   ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
   ctx.restore();
@@ -2789,7 +2797,16 @@ class Tower {
       // The idle pose isn't aimed at anything in particular, so it's drawn
       // in its natural orientation rather than mirrored toward a target.
       const mirrorAngle = isIdleSprite ? null : this.aimAngle;
-      drawTowerSprite(ctx, spriteEntry.img, x, y, baseSize, mirrorAngle, TOWER_SPRITE_NATIVE_FACING_LEFT[this.def.id]);
+      // Firing kick: a brief snap right after the shot leaves, timed off
+      // cooldown/fireRate (cooldown is reset to 1/fireRate the instant
+      // fire() runs) rather than adding new per-tower state.
+      let kickT = 0;
+      if (!isIdleSprite && this.target) {
+        const timeSinceFire = 1 / this.fireRate - this.cooldown;
+        const KICK_DURATION = 0.15;
+        if (timeSinceFire >= 0 && timeSinceFire < KICK_DURATION) kickT = 1 - timeSinceFire / KICK_DURATION;
+      }
+      drawTowerSprite(ctx, spriteEntry.img, x, y, baseSize, mirrorAngle, TOWER_SPRITE_NATIVE_FACING_LEFT[this.def.id], kickT);
     } else if (isDerp) {
       // Kill the inherited plinth glow (shadowBlur/shadowColor) here — at
       // real battlefield scale a colored blur haze washes the small figure

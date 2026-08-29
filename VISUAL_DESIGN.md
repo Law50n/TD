@@ -344,6 +344,47 @@ Verified: pot-of-gold and tree-silhouette close-ups confirm both render as
 intended at real scale; full regression suite and an rAF check (~5ms, no
 regression from the added per-frame draws) both pass clean.
 
+**Atmosphere rework, round 2.** User feedback on the first pass: "I don't
+really like what we've got so far but we can work on it. derp art is
+simple yet detailed with shading and those clean, black lines" — alongside
+a reference image of a forest-spirit scene with real depth (layered
+treeline, atmospheric fog) and shaded (not flat) shapes. Read as: keep the
+crisp outlines, but the flat silhouettes and scattered fog blobs were
+reading as bare/undetailed, not "simple yet detailed."
+
+- **Moon**: flat fill → radial gradient (lit-sphere look) with a soft glow
+  and a crisp dark stroke, so it has actual shading instead of being a
+  flat disc.
+- **Trees**: the trunk+branch geometry was rebuilt twice. First rewrite
+  used a closed blade-shaped trunk with mirrored ±dir chevron branches at
+  even heights — screenshotted and it read as a fern/reed, not a tree.
+  Rebuilt again with a genuinely tapered trunk that stops partway up, and
+  5 independently-seeded branches (`tileHash`-driven angle/length/bend per
+  branch, some with a forking twig) so no two branches mirror each other —
+  this is what makes it read as a gnarled winter tree instead of a
+  symmetric pattern. Branch strokes use a linear gradient (dark at the
+  base, lighter toward the tips) for the same shaded-not-flat treatment as
+  the moon.
+- **Distant treeline**: added 7 small hazy trees along the top edge for
+  depth (the original had only the 2 foreground corner trees, so the top
+  of the screen was empty). First attempt anchored them at `y = size *
+  0.15` — with the trunk and branches growing upward from that point, most
+  of each tree rendered above y=0 and off-canvas; only faint tufts were
+  visible. Fixed by anchoring lower (`y = size * 1.05`) so the full tree
+  fits in frame, and swapped the color from a near-black `#1a2a1c` (which
+  barely showed against the equally-dark sky) to a lighter grey-green
+  `#3a4a42` at higher opacity — distant objects reading lighter/hazier is
+  also just correct atmospheric perspective.
+- **Fog**: flat drifting ellipse blobs → a linear-gradient wash rising
+  from the bottom of the screen (real atmosphere, not discrete shapes)
+  plus a few soft radial-gradient wisps layered on top for drift/motion.
+
+Verified: close-ups of the moon, a single foreground tree, and the full
+top treeline confirm the shading and branch-asymmetry read correctly at
+real scale; full-board screenshots of both maps confirm the composition
+holds up together, not just in isolated crops; full regression suite and
+an rAF check (2.5-4.8ms, no regression) both pass clean.
+
 ## Suggested order
 
 **B → C → E → D.** Motion and chrome polish compound with what already

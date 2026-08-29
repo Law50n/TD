@@ -2286,70 +2286,139 @@ class GameMap {
       ctx.restore();
     }
   }
-  // Spooky-woods atmosphere: a pale moon, dark tree silhouettes framing
-  // the corners, and drifting ground fog. Entirely screen-space (anchored
-  // to canvas dimensions, not tile coordinates), so it never sits on a
-  // buildable tile or interferes with clicking.
+  // Spooky-woods atmosphere: a shaded moon, a layered treeline (hazy
+  // distant trees along the top, two larger detailed ones anchored in the
+  // foreground corners), and a real fog gradient wash rather than flat
+  // floating shapes — reworked after reference art showed the gap: clean
+  // black outlines around shapes that still have gradient shading inside,
+  // and fog as atmosphere (a wash), not a scattering of solid blobs.
+  // Entirely screen-space (canvas dimensions, not tile coordinates), so
+  // none of it can ever sit on a buildable tile or block a click.
   drawSpookyAtmosphere(ctx) {
     const cw = this.canvas.width, ch = this.canvas.height;
     const moonPulse = 0.5 + 0.5 * Math.sin(this.animTime * 0.6);
 
+    // Moon — radial-gradient shaded (a lit sphere, not a flat disc) with a
+    // crisp dark outline, matching the "shaded fill, clean black line" cue
     ctx.save();
-    ctx.globalAlpha = 0.85;
-    ctx.shadowColor = 'rgba(210,225,190,0.6)';
-    ctx.shadowBlur = Math.min(cw, ch) * 0.05 + moonPulse * 4;
-    ctx.fillStyle = '#dce6c8';
+    const moonX = cw * 0.9, moonY = ch * 0.13, moonR = Math.min(cw, ch) * 0.045;
+    ctx.shadowColor = 'rgba(210,225,190,0.55)';
+    ctx.shadowBlur = moonR * 1.4 + moonPulse * 4;
+    const moonGrad = ctx.createRadialGradient(moonX - moonR * 0.3, moonY - moonR * 0.3, moonR * 0.1, moonX, moonY, moonR);
+    moonGrad.addColorStop(0, '#f2f3e0');
+    moonGrad.addColorStop(1, '#b9c2a0');
+    ctx.fillStyle = moonGrad;
     ctx.beginPath();
-    ctx.arc(cw * 0.9, ch * 0.13, Math.min(cw, ch) * 0.045, 0, Math.PI * 2);
+    ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = 'rgba(20,25,15,0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
     ctx.restore();
 
+    // Distant hazy treeline along the top edge — several small trees,
+    // low-opacity and desaturated so they read as "far away," not just
+    // two isolated corner props
     ctx.save();
-    ctx.fillStyle = 'rgba(4,10,4,0.6)';
-    ctx.strokeStyle = 'rgba(4,10,4,0.6)';
-    this._drawTreeSilhouette(ctx, cw * 0.03, ch * 1.02, Math.min(cw, ch) * 0.24, -1);
-    this._drawTreeSilhouette(ctx, cw * 0.985, ch * 1.0, Math.min(cw, ch) * 0.19, 1);
+    ctx.globalAlpha = 0.5;
+    const farCount = 7;
+    for (let i = 0; i < farCount; i++) {
+      const seed = tileHash(i, 97, 5);
+      const tx = cw * ((i + 0.5) / farCount) + (seed - 0.5) * cw * 0.06;
+      const tsize = Math.min(cw, ch) * (0.09 + tileHash(i, 97, 6) * 0.05);
+      this._drawTreeSilhouette(ctx, tx, tsize * 1.05, tsize, seed > 0.5 ? 1 : -1, '#3a4a42');
+    }
     ctx.restore();
 
-    // Drifting ground fog — a few soft translucent ellipses looping across
-    // the bottom of the canvas
+    // Two larger, darker foreground trees anchored in the bottom corners
     ctx.save();
-    ctx.globalAlpha = 0.09;
-    ctx.fillStyle = '#a8c8a0';
+    ctx.globalAlpha = 0.75;
+    this._drawTreeSilhouette(ctx, cw * 0.03, ch * 1.02, Math.min(cw, ch) * 0.26, -1, '#0a140b');
+    this._drawTreeSilhouette(ctx, cw * 0.985, ch * 1.0, Math.min(cw, ch) * 0.21, 1, '#0a140b');
+    ctx.restore();
+
+    // Ground fog: a real atmospheric wash (a gradient rising from the
+    // bottom edge) instead of scattered flat blobs, plus a few soft
+    // radial-gradient wisps drifting across it for a little motion
+    ctx.save();
+    const fogWash = ctx.createLinearGradient(0, ch * 0.55, 0, ch);
+    fogWash.addColorStop(0, 'rgba(160,190,155,0)');
+    fogWash.addColorStop(1, 'rgba(160,190,155,0.16)');
+    ctx.fillStyle = fogWash;
+    ctx.fillRect(0, ch * 0.55, cw, ch * 0.45);
+
     for (let i = 0; i < 4; i++) {
       const speed = 5 + i * 1.3;
-      const span = cw + 220;
-      const fx = ((this.animTime * speed + i * 210) % span) - 110;
-      const fy = ch * (0.78 + 0.05 * Math.sin(this.animTime * 0.3 + i * 2));
+      const span = cw + 260;
+      const fx = ((this.animTime * speed + i * 210) % span) - 130;
+      const fy = ch * (0.8 + 0.05 * Math.sin(this.animTime * 0.3 + i * 2));
+      const wisp = ctx.createRadialGradient(fx, fy, 0, fx, fy, 110);
+      wisp.addColorStop(0, 'rgba(180,205,175,0.14)');
+      wisp.addColorStop(1, 'rgba(180,205,175,0)');
+      ctx.fillStyle = wisp;
       ctx.beginPath();
-      ctx.ellipse(fx, fy, 100, 20, 0, 0, Math.PI * 2);
+      ctx.ellipse(fx, fy, 110, 26, 0, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
   }
-  // A simple gnarled bare tree silhouette: a trunk plus a few angled
-  // branches, drawn from a base point (x,y) growing upward. `dir` (-1/1)
-  // leans the branches toward the play area rather than off-canvas.
-  _drawTreeSilhouette(ctx, x, y, size, dir) {
+  // A gnarled bare tree silhouette: a tapered trunk plus a few curved
+  // branches (quadratic curves, not straight lines, for an organic
+  // gnarled look), drawn from a base point (x,y) growing upward, with a
+  // subtle gradient fill so it reads as shaded rather than flat-cut-out.
+  // `dir` (-1/1) leans the branches toward the play area.
+  _drawTreeSilhouette(ctx, x, y, size, dir, color) {
+    const seedBase = Math.round(x);
+    const grad = ctx.createLinearGradient(x, y, x, y - size);
+    grad.addColorStop(0, color);
+    grad.addColorStop(1, lightenColor(color, 0.28));
+
+    // Trunk: a tapered wedge from the base to a fork point partway up —
+    // a distinct trunk, not a single blade shape running the full height
+    const trunkH = size * 0.5;
+    ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x + dir * size * 0.15, y - size * 0.75);
-    ctx.lineTo(x + dir * size * 0.05, y - size);
-    ctx.lineTo(x - dir * size * 0.06, y - size * 0.7);
+    ctx.moveTo(x - size * 0.09, y);
+    ctx.quadraticCurveTo(x - size * 0.05, y - trunkH * 0.6, x - size * 0.025, y - trunkH);
+    ctx.lineTo(x + size * 0.03, y - trunkH);
+    ctx.quadraticCurveTo(x + size * 0.06, y - trunkH * 0.6, x + size * 0.09, y);
     ctx.closePath();
     ctx.fill();
-    ctx.lineWidth = Math.max(2, size * 0.035);
-    for (let i = 0; i < 4; i++) {
-      const by = y - size * (0.4 + i * 0.14);
-      const bl = size * (0.4 - i * 0.06);
+
+    // Branches fork off at varied heights, angles, and lengths (seeded per
+    // branch, not mirrored) so the silhouette reads as gnarled and
+    // asymmetric instead of a repeating chevron
+    ctx.strokeStyle = grad;
+    ctx.lineCap = 'round';
+    const branchCount = 5;
+    for (let i = 0; i < branchCount; i++) {
+      const s1 = tileHash(seedBase + i, 41, 1), s2 = tileHash(seedBase + i, 41, 2), s3 = tileHash(seedBase + i, 41, 3);
+      const forkFrac = 0.3 + (i / branchCount) * 0.65;
+      const bx = x + (s1 - 0.5) * size * 0.06;
+      const by = y - trunkH - size * (forkFrac - 0.3) * 0.55;
+      const angle = -Math.PI / 2 + dir * (0.35 + s2 * 1.0); // leans toward `dir`, off vertical
+      const blen = size * (0.4 + s3 * 0.35) * (1 - i / branchCount * 0.35);
+      const bend = (s1 - 0.5) * blen * 0.5;
+      const perp = angle + Math.PI / 2;
+      const midx = bx + Math.cos(angle) * blen * 0.5 + Math.cos(perp) * bend;
+      const midy = by + Math.sin(angle) * blen * 0.5 + Math.sin(perp) * bend;
+      const endx = bx + Math.cos(angle) * blen;
+      const endy = by + Math.sin(angle) * blen;
+      ctx.lineWidth = Math.max(1.2, size * 0.026 * (1 - i / branchCount * 0.5));
       ctx.beginPath();
-      ctx.moveTo(x, by);
-      ctx.lineTo(x + dir * bl, by - bl * 0.65);
+      ctx.moveTo(bx, by);
+      ctx.quadraticCurveTo(midx, midy, endx, endy);
       ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(x, by);
-      ctx.lineTo(x - dir * bl * 0.55, by - bl * 0.45);
-      ctx.stroke();
+      // A short forking twig off the branch, on about half of them
+      if (s3 > 0.45) {
+        const twigAngle = angle - dir * (0.4 + s1 * 0.5);
+        const twigLen = blen * 0.4;
+        ctx.lineWidth = Math.max(1, size * 0.016);
+        ctx.beginPath();
+        ctx.moveTo(midx, midy);
+        ctx.lineTo(midx + Math.cos(twigAngle) * twigLen, midy + Math.sin(twigAngle) * twigLen);
+        ctx.stroke();
+      }
     }
   }
   drawTowers(ctx, selectedTile, gameTime) {

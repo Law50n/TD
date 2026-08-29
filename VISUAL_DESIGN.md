@@ -194,6 +194,18 @@ Verified deterministically — called the function directly at `kickT` 0 /
 0.5 / 1.0 and confirmed each stage visibly larger/further back — rather
 than trying to catch the real 150ms window on camera by luck.
 
+**A real fire pose replaced the synthetic kick.** The user sent two more
+images — the same character right after loosing the arrow: bow empty,
+arms in a relaxed follow-through. Added a third sprite key per tower
+(`{id}_fire`, alongside `{id}`/`{id}_idle`), extended the kick window to
+220ms, and `Tower.draw()` now swaps to the fire sprite for that window
+instead of only applying the synthetic snap+scale to the aiming sprite
+(the snap+scale still layers on top for extra punch). Falls back to the
+old synthetic-only behavior for any tower with no fire art yet. Verified
+three ways: a direct isolated call at each of the three sprite keys side
+by side, then a rapid-fire real-combat screenshot burst showing the empty-
+bow fire frame land exactly at the moment the arrow visibly departs.
+
 **Bug found and fixed along the way:** `updateGame()` — which drives
 `Tower.update()`, and with it the placement materialize animation — only
 runs while `gameState === 'playing'`. A tower placed before the first wave,

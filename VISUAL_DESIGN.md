@@ -147,6 +147,37 @@ Both the Archer/Derp and Crawler/Goblin are now full-body figures rather
 than floating heads/faces, closing out this style pass before it expands
 to the other 3 towers and remaining enemy types.
 
+**Third round on the Archer — real sprite art.** Still "not as good as it
+needs to be" after two procedural passes; the actual gap was medium
+(painterly gradients, fur texture) that Canvas 2D shapes can't produce.
+The user generated real illustrated art and sent it directly in chat.
+Pulled it out of the session's own conversation log (`~/.claude/projects/
+.../*.jsonl` stores each attachment's base64 inline — no separate upload
+folder to check) rather than asking for a re-send, background-removed it
+with a border-flood-fill (`scipy.ndimage.label`, keeping only white regions
+connected to the image edge — so enclosed whites like the eyes and the
+bow's string-gap survive correctly instead of an in/out global threshold
+punching holes in light-colored interior art), cropped off the source's
+own baked-in platform (its fine rune linework collapses into a solid green
+blob at true battlefield scale — kept the game's own simpler plinth glow,
+which stays legible small), and embedded the result as base64 to keep the
+single-file architecture.
+
+New infra: `TOWER_SPRITE_SRC`/`TOWER_SPRITES` (id → `Image` + loaded flag)
+and `drawTowerSprite()`. Sprites are static side-profile art, so they don't
+rotate through arbitrary aim angles like the procedural rig — they mirror
+horizontally to face the target's side, same as most 2D TD games with
+illustrated units (`TOWER_SPRITE_NATIVE_FACING_LEFT` records which way each
+source pose already faces so the mirror only fires when it needs to;
+verified explicitly at angle 0 and π before trusting it in combat).
+`Tower.draw()` uses the sprite when loaded and falls back to
+`drawDerpArcher()` otherwise, so every other tower keeps working exactly as
+before with zero art. The user then sent two more angles of the same
+character; one (a relaxed hold rather than a taut draw) became a second
+sprite (`archer_idle`) shown while the tower has no target, swapping to the
+in-combat sprite the instant `this.target` is set — small bit of life for
+free from art already on hand, verified by screenshotting both states.
+
 **Bug found and fixed along the way:** `updateGame()` — which drives
 `Tower.update()`, and with it the placement materialize animation — only
 runs while `gameState === 'playing'`. A tower placed before the first wave,

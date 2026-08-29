@@ -92,6 +92,17 @@ rest of the roster:
   (including bosses) can reuse them with different palettes/accessories
   rather than needing bespoke code each.
 
+**Iterated after user feedback:** the first pass read as "a seal, not a
+Derp" — a plain round head is exactly the wrong silhouette. Reworked
+`drawDerpHead()` against actual Derp reference art: the head is now an
+elongated egg (not a circle) sitting on a visible short neck, tilted more
+sharply, with deliberately mismatched "googly" eyes (different sizes,
+different positions — the defining Derp trait) and goggles pushed up onto
+the forehead rather than covering the eyes, per the reference. Also
+stripped the inherited plinth glow (`shadowBlur`) before drawing the head
+and enlarged it slightly — at true battlefield scale a colored blur haze
+was washing the small face into an unreadable blob.
+
 **Bug found and fixed along the way:** `updateGame()` — which drives
 `Tower.update()`, and with it the placement materialize animation — only
 runs while `gameState === 'playing'`. A tower placed before the first wave,

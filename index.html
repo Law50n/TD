@@ -2316,34 +2316,49 @@ class GameMap {
     ctx.stroke();
     ctx.restore();
 
-    // Distant hazy treeline along the top edge — several small trees,
-    // low-opacity and desaturated so they read as "far away," not just
-    // two isolated corner props
+    // Distant hazy treeline along the top edge — several small rounded
+    // canopy trees, desaturated and lower-opacity so they read as "far
+    // away," not just two isolated corner props
     ctx.save();
-    ctx.globalAlpha = 0.5;
+    ctx.globalAlpha = 0.55;
     const farCount = 7;
     for (let i = 0; i < farCount; i++) {
       const seed = tileHash(i, 97, 5);
       const tx = cw * ((i + 0.5) / farCount) + (seed - 0.5) * cw * 0.06;
       const tsize = Math.min(cw, ch) * (0.09 + tileHash(i, 97, 6) * 0.05);
-      this._drawTreeSilhouette(ctx, tx, tsize * 1.05, tsize, seed > 0.5 ? 1 : -1, '#3a4a42');
+      this._drawTreeCluster(ctx, tx, tsize * 1.05, tsize, TREE_HUE_FAR, i);
     }
     ctx.restore();
 
-    // Two larger, darker foreground trees anchored in the bottom corners
+    // Small rounded rocks scattered along the bottom edge for grounded
+    // detail between/around the trees
     ctx.save();
-    ctx.globalAlpha = 0.75;
-    this._drawTreeSilhouette(ctx, cw * 0.03, ch * 1.02, Math.min(cw, ch) * 0.26, -1, '#0a140b');
-    this._drawTreeSilhouette(ctx, cw * 0.985, ch * 1.0, Math.min(cw, ch) * 0.21, 1, '#0a140b');
+    ctx.globalAlpha = 0.85;
+    const rockFracs = [0.16, 0.38, 0.62, 0.83];
+    for (let i = 0; i < rockFracs.length; i++) {
+      const rh = tileHash(i, 131, 1);
+      const rsize = Math.min(cw, ch) * (0.028 + rh * 0.018);
+      this._drawRockCluster(ctx, cw * rockFracs[i], ch - rsize * 0.4, rsize, i);
+    }
+    ctx.restore();
+
+    // Two larger, more detailed foreground trees anchored in the bottom
+    // corners — rounded canopy clusters, richer and more saturated than
+    // the hazy treeline, matching the reference's soft painted foliage
+    ctx.save();
+    this._drawTreeCluster(ctx, cw * 0.05, ch * 1.0, Math.min(cw, ch) * 0.3, TREE_HUE_NEAR, 11);
+    this._drawTreeCluster(ctx, cw * 0.97, ch * 0.98, Math.min(cw, ch) * 0.24, TREE_HUE_NEAR, 23);
     ctx.restore();
 
     // Ground fog: a real atmospheric wash (a gradient rising from the
     // bottom edge) instead of scattered flat blobs, plus a few soft
-    // radial-gradient wisps drifting across it for a little motion
+    // radial-gradient wisps drifting across it for a little motion —
+    // cool pale mist rather than a swampy green tint, closer to the
+    // reference's soft lavender-night haze
     ctx.save();
     const fogWash = ctx.createLinearGradient(0, ch * 0.55, 0, ch);
-    fogWash.addColorStop(0, 'rgba(160,190,155,0)');
-    fogWash.addColorStop(1, 'rgba(160,190,155,0.16)');
+    fogWash.addColorStop(0, 'rgba(180,180,205,0)');
+    fogWash.addColorStop(1, 'rgba(180,180,205,0.15)');
     ctx.fillStyle = fogWash;
     ctx.fillRect(0, ch * 0.55, cw, ch * 0.45);
 
@@ -2353,8 +2368,8 @@ class GameMap {
       const fx = ((this.animTime * speed + i * 210) % span) - 130;
       const fy = ch * (0.8 + 0.05 * Math.sin(this.animTime * 0.3 + i * 2));
       const wisp = ctx.createRadialGradient(fx, fy, 0, fx, fy, 110);
-      wisp.addColorStop(0, 'rgba(180,205,175,0.14)');
-      wisp.addColorStop(1, 'rgba(180,205,175,0)');
+      wisp.addColorStop(0, 'rgba(195,195,215,0.13)');
+      wisp.addColorStop(1, 'rgba(195,195,215,0)');
       ctx.fillStyle = wisp;
       ctx.beginPath();
       ctx.ellipse(fx, fy, 110, 26, 0, 0, Math.PI * 2);
@@ -2362,64 +2377,121 @@ class GameMap {
     }
     ctx.restore();
   }
-  // A gnarled bare tree silhouette: a tapered trunk plus a few curved
-  // branches (quadratic curves, not straight lines, for an organic
-  // gnarled look), drawn from a base point (x,y) growing upward, with a
-  // subtle gradient fill so it reads as shaded rather than flat-cut-out.
-  // `dir` (-1/1) leans the branches toward the play area.
-  _drawTreeSilhouette(ctx, x, y, size, dir, color) {
-    const seedBase = Math.round(x);
-    const grad = ctx.createLinearGradient(x, y, x, y - size);
-    grad.addColorStop(0, color);
-    grad.addColorStop(1, lightenColor(color, 0.28));
-
-    // Trunk: a tapered wedge from the base to a fork point partway up —
-    // a distinct trunk, not a single blade shape running the full height
-    const trunkH = size * 0.5;
-    ctx.fillStyle = grad;
+  // A rounded canopy-cluster tree: an ambient-occlusion shadow grounding
+  // it, a short tapered trunk, and a lumpy rounded canopy (an irregular
+  // closed blob path, not a circle) filled with a directional gradient
+  // (light upper-left, dark lower-right) and a single clean dark outline
+  // — reworked from an earlier bare-branch silhouette after reference art
+  // showed a softer, rounded, painted-foliage look was wanted instead.
+  _drawTreeCluster(ctx, x, y, size, hue, seedBase) {
+    ctx.save();
+    // AO shadow first, so the trunk/canopy sit on top of it
+    const shadowGrad = ctx.createRadialGradient(x, y, 0, x, y, size * 0.5);
+    shadowGrad.addColorStop(0, 'rgba(0,0,0,0.32)');
+    shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = shadowGrad;
     ctx.beginPath();
-    ctx.moveTo(x - size * 0.09, y);
-    ctx.quadraticCurveTo(x - size * 0.05, y - trunkH * 0.6, x - size * 0.025, y - trunkH);
-    ctx.lineTo(x + size * 0.03, y - trunkH);
-    ctx.quadraticCurveTo(x + size * 0.06, y - trunkH * 0.6, x + size * 0.09, y);
-    ctx.closePath();
+    ctx.ellipse(x, y, size * 0.48, size * 0.13, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Branches fork off at varied heights, angles, and lengths (seeded per
-    // branch, not mirrored) so the silhouette reads as gnarled and
-    // asymmetric instead of a repeating chevron
-    ctx.strokeStyle = grad;
-    ctx.lineCap = 'round';
-    const branchCount = 5;
-    for (let i = 0; i < branchCount; i++) {
-      const s1 = tileHash(seedBase + i, 41, 1), s2 = tileHash(seedBase + i, 41, 2), s3 = tileHash(seedBase + i, 41, 3);
-      const forkFrac = 0.3 + (i / branchCount) * 0.65;
-      const bx = x + (s1 - 0.5) * size * 0.06;
-      const by = y - trunkH - size * (forkFrac - 0.3) * 0.55;
-      const angle = -Math.PI / 2 + dir * (0.35 + s2 * 1.0); // leans toward `dir`, off vertical
-      const blen = size * (0.4 + s3 * 0.35) * (1 - i / branchCount * 0.35);
-      const bend = (s1 - 0.5) * blen * 0.5;
-      const perp = angle + Math.PI / 2;
-      const midx = bx + Math.cos(angle) * blen * 0.5 + Math.cos(perp) * bend;
-      const midy = by + Math.sin(angle) * blen * 0.5 + Math.sin(perp) * bend;
-      const endx = bx + Math.cos(angle) * blen;
-      const endy = by + Math.sin(angle) * blen;
-      ctx.lineWidth = Math.max(1.2, size * 0.026 * (1 - i / branchCount * 0.5));
-      ctx.beginPath();
-      ctx.moveTo(bx, by);
-      ctx.quadraticCurveTo(midx, midy, endx, endy);
-      ctx.stroke();
-      // A short forking twig off the branch, on about half of them
-      if (s3 > 0.45) {
-        const twigAngle = angle - dir * (0.4 + s1 * 0.5);
-        const twigLen = blen * 0.4;
-        ctx.lineWidth = Math.max(1, size * 0.016);
-        ctx.beginPath();
-        ctx.moveTo(midx, midy);
-        ctx.lineTo(midx + Math.cos(twigAngle) * twigLen, midy + Math.sin(twigAngle) * twigLen);
-        ctx.stroke();
-      }
+    // Trunk: short tapered wedge, gradient shaded, dark outline
+    const trunkH = size * 0.3, trunkW = size * 0.09;
+    const trunkGrad = ctx.createLinearGradient(x - trunkW, y, x + trunkW, y);
+    trunkGrad.addColorStop(0, '#4a3524');
+    trunkGrad.addColorStop(0.5, '#6b4c30');
+    trunkGrad.addColorStop(1, '#3d2a1a');
+    ctx.fillStyle = trunkGrad;
+    ctx.strokeStyle = 'rgba(20,12,8,0.7)';
+    ctx.lineWidth = Math.max(1.2, size * 0.02);
+    ctx.beginPath();
+    ctx.moveTo(x - trunkW, y);
+    ctx.quadraticCurveTo(x - trunkW * 0.6, y - trunkH * 0.6, x - trunkW * 0.4, y - trunkH);
+    ctx.lineTo(x + trunkW * 0.4, y - trunkH);
+    ctx.quadraticCurveTo(x + trunkW * 0.6, y - trunkH * 0.6, x + trunkW, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Canopy: an irregular lumpy blob (8 seeded bumps joined by quadratic
+    // curves through their midpoints) rather than a plain circle, so the
+    // silhouette reads as fluffy foliage clusters, not a lollipop
+    const cx = x, cy = y - trunkH - size * 0.32, cr = size * 0.42;
+    const bumps = 8;
+    const pts = [];
+    for (let i = 0; i < bumps; i++) {
+      const a = (i / bumps) * Math.PI * 2;
+      const rr = cr * (0.78 + tileHash(seedBase + i, 53, 7) * 0.32);
+      pts.push({ x: cx + Math.cos(a) * rr, y: cy + Math.sin(a) * rr * 0.9 });
     }
+    ctx.beginPath();
+    ctx.moveTo((pts[0].x + pts[bumps - 1].x) / 2, (pts[0].y + pts[bumps - 1].y) / 2);
+    for (let i = 0; i < bumps; i++) {
+      const next = pts[(i + 1) % bumps];
+      const midx = (pts[i].x + next.x) / 2, midy = (pts[i].y + next.y) / 2;
+      ctx.quadraticCurveTo(pts[i].x, pts[i].y, midx, midy);
+    }
+    ctx.closePath();
+    const canopyGrad = ctx.createRadialGradient(cx - cr * 0.35, cy - cr * 0.4, cr * 0.15, cx, cy, cr * 1.15);
+    canopyGrad.addColorStop(0, hue.light);
+    canopyGrad.addColorStop(0.55, hue.mid);
+    canopyGrad.addColorStop(1, hue.dark);
+    ctx.fillStyle = canopyGrad;
+    ctx.fill();
+    ctx.strokeStyle = hue.outline;
+    ctx.lineWidth = Math.max(1.3, size * 0.022);
+    ctx.stroke();
+
+    // A few small leaf-clump flecks inside the canopy for texture, the
+    // same light-highlight-on-dark technique used for the ruins tile rubble
+    for (let i = 0; i < 3; i++) {
+      const fh1 = tileHash(seedBase + i, 61, 3), fh2 = tileHash(seedBase + i, 61, 4);
+      const fx = cx + (fh1 - 0.5) * cr * 1.1, fy = cy + (fh2 - 0.5) * cr * 0.9;
+      if (Math.hypot(fx - cx, fy - cy) > cr * 0.85) continue;
+      ctx.fillStyle = hue.fleck;
+      ctx.beginPath();
+      ctx.arc(fx, fy, size * 0.02, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  // A small rounded rock cluster: same AO-shadow + lumpy-blob + gradient +
+  // outline technique as the trees, at a smaller scale with fewer, more
+  // angular bumps and a cool stone palette.
+  _drawRockCluster(ctx, x, y, size, seedBase) {
+    ctx.save();
+    const shadowGrad = ctx.createRadialGradient(x, y + size * 0.05, 0, x, y + size * 0.05, size * 0.7);
+    shadowGrad.addColorStop(0, 'rgba(0,0,0,0.28)');
+    shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = shadowGrad;
+    ctx.beginPath();
+    ctx.ellipse(x, y + size * 0.05, size * 0.55, size * 0.16, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    const bumps = 6;
+    const pts = [];
+    for (let i = 0; i < bumps; i++) {
+      const a = (i / bumps) * Math.PI * 2;
+      const rr = size * (0.5 + tileHash(seedBase + i, 71, 2) * 0.35);
+      pts.push({ x: x + Math.cos(a) * rr, y: y - size * 0.15 + Math.sin(a) * rr * 0.55 });
+    }
+    ctx.beginPath();
+    ctx.moveTo((pts[0].x + pts[bumps - 1].x) / 2, (pts[0].y + pts[bumps - 1].y) / 2);
+    for (let i = 0; i < bumps; i++) {
+      const next = pts[(i + 1) % bumps];
+      const midx = (pts[i].x + next.x) / 2, midy = (pts[i].y + next.y) / 2;
+      ctx.quadraticCurveTo(pts[i].x, pts[i].y, midx, midy);
+    }
+    ctx.closePath();
+    const rockGrad = ctx.createLinearGradient(x - size * 0.4, y - size * 0.5, x + size * 0.4, y + size * 0.2);
+    rockGrad.addColorStop(0, '#8a8f9a');
+    rockGrad.addColorStop(0.6, '#5c6068');
+    rockGrad.addColorStop(1, '#383b42');
+    ctx.fillStyle = rockGrad;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(15,15,20,0.7)';
+    ctx.lineWidth = Math.max(1.2, size * 0.03);
+    ctx.stroke();
+    ctx.restore();
   }
   drawTowers(ctx, selectedTile, gameTime) {
     this.towers.forEach((tower, key) => {
@@ -2457,6 +2529,18 @@ function tileHash(c, r, salt) {
   h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
   return (h ^ (h >>> 16)) / 4294967295;
 }
+// Canopy-cluster tree color sets: a richer, more saturated green for the
+// foreground corner trees, and a desaturated blue-grey-green for the
+// distant hazy treeline (lighter = "farther away," standard atmospheric
+// perspective rather than just a flat alpha drop).
+const TREE_HUE_NEAR = {
+  light: '#7fa066', mid: '#4e7040', dark: '#2c4324',
+  outline: 'rgba(18,26,14,0.8)', fleck: 'rgba(150,180,115,0.55)'
+};
+const TREE_HUE_FAR = {
+  light: '#7c8d84', mid: '#57685f', dark: '#374439',
+  outline: 'rgba(25,32,28,0.6)', fleck: 'rgba(160,175,165,0.35)'
+};
 // Renders a small static preview of a map's path onto a <canvas>, for the
 // map-select screen — lets a player see the actual route shape before
 // picking instead of a generic emoji standing in for it.

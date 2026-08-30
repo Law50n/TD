@@ -385,6 +385,47 @@ real scale; full-board screenshots of both maps confirm the composition
 holds up together, not just in isolated crops; full regression suite and
 an rAF check (2.5-4.8ms, no regression) both pass clean.
 
+**Atmosphere rework, round 3 — rounded canopy trees.** Round 2 still
+missed: "I still don't really like the art/style, i was thinking something
+more like the attached," with a reference showing soft rounded tree
+canopies (layered fluffy clumps, not bare branches), ambient-occlusion
+shadows grounding every prop, and a warmer/softer painted look overall.
+That's a different tier of fidelity than hand-coded Canvas shapes can
+fully match — it reads like painted/illustrated tile art, not primitives
+— so this was scoped explicitly as a **stopgap**: push the procedural
+technique as far as it reasonably goes now, with real generated tile art
+(the same reference-image pipeline used for the archer sprite) as the
+follow-up once there are image credits to spend on environment art
+instead of towers.
+
+- **`_drawTreeCluster()`** replaces the bare-branch `_drawTreeSilhouette`
+  entirely: an ambient-occlusion shadow (radial-gradient ellipse) grounds
+  the tree, a short tapered trunk, and a lumpy rounded canopy — an
+  irregular closed blob path (8 `tileHash`-seeded bumps joined by
+  quadratic curves through their midpoints, not a plain circle) filled
+  with a directional radial gradient (light upper-left, dark lower-right,
+  the same "shaded volume" cue as the moon) and one clean dark outline
+  around the whole silhouette. A few small light flecks scattered inside
+  read as leaf-clump texture.
+- **`_drawRockCluster()`**: same AO-shadow + lumpy-blob + gradient +
+  outline recipe at rock scale (6 more angular bumps, a cool grey-stone
+  palette), scattered along the bottom edge between the trees for the
+  grounded prop density the reference has.
+- Two color sets (`TREE_HUE_NEAR`/`TREE_HUE_FAR`) instead of one flat
+  color per tree: the foreground corner trees are richer/more saturated,
+  the treeline trees are desaturated blue-grey-green — lighter reading as
+  farther away is real atmospheric perspective, not just an alpha drop.
+- Ground fog re-tinted from a swampy green wash to a cooler pale
+  lavender-grey mist, closer to the reference's tone without touching the
+  core tile/path palette (which many other systems — theme colors, the
+  selected-tile highlight, map-select previews — depend on and weren't
+  part of this feedback).
+
+Verified: full-board screenshots of both maps and a foreground-tree
+close-up confirm the rounded, shaded, AO-grounded look reads correctly;
+full regression suite and an rAF check (2.7ms, no regression) both pass
+clean.
+
 ## Suggested order
 
 **B → C → E → D.** Motion and chrome polish compound with what already
